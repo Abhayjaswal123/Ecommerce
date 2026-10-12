@@ -2,6 +2,7 @@ import { ArrowUpRight, LogOut, ShoppingBag, Sparkles } from "lucide-react";
 import { Link } from "react-router";
 import {logout} from  "../api/api";
 import { useNavigate } from "react-router";
+import { getStoredUser } from "../utils/authStorage";
 
 function Home() {
 
@@ -18,7 +19,7 @@ const logoutUser = async () => {
   }
 };
 
-const user = JSON.parse(localStorage.getItem("user") || "null");
+const user = getStoredUser();
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900">

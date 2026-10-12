@@ -5,7 +5,8 @@ import { z } from "zod";
 import axios from "axios";
 import { ArrowRight, Check, Eye, EyeOff, LockKeyhole, Mail, Store } from "lucide-react";
 import { Link, Navigate, useNavigate } from "react-router";
-import { userLogin } from "../api/api";
+import { getAuthUser, userLogin } from "../api/api";
+import { getStoredUser, saveUser } from "../utils/authStorage";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -31,10 +32,12 @@ function Login() {
 
     try {
       const res = await userLogin(data);
-      localStorage.setItem(
-        "user",
-        JSON.stringify(res?.data?.user)
-      );
+      const user = getAuthUser(res.data);
+      if (!user) {
+        setRequestError("Sign-in succeeded, but the server did not return user details.");
+        return;
+      }
+      saveUser(user);
       navigate("/home");
     } catch (error) {
       const message = axios.isAxiosError<{ message?: string }>(error)
@@ -44,7 +47,7 @@ function Login() {
     }
   };
 
-  if (localStorage.getItem("user")) {
+  if (getStoredUser()) {
     return <Navigate to="/home" replace />;
   }
 

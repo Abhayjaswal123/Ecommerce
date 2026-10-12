@@ -1,9 +1,12 @@
+import { useState } from "react";
+import axios from "axios";
 import { ArrowRight, Eye, LockKeyhole, Mail, Store, UserRound } from "lucide-react";
 import { Link, Navigate, useNavigate } from "react-router";
 import { useForm, type SubmitHandler } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { userRegister } from "../api/api";
+import { getAuthUser, userRegister } from "../api/api";
+import { getStoredUser, saveUser } from "../utils/authStorage";
 
 export const userSchema = z.object({
   username: z
@@ -35,7 +38,8 @@ type Inputs = z.infer<typeof userSchema>;
 
 
 function Register() {
-const navigate = useNavigate();
+  const navigate = useNavigate();
+  const [requestError, setRequestError] = useState("");
 
   const {
     register,
@@ -44,18 +48,29 @@ const navigate = useNavigate();
   } = useForm<Inputs>({
     resolver: zodResolver(userSchema),
   });
-  const onSubmit: SubmitHandler<Inputs> = async(data) => {
-  const res = await userRegister(data);
-  localStorage.setItem(
-    "user",
-    JSON.stringify(res?.data?.user)
-  );
-  navigate("/home")
-};
+  const onSubmit: SubmitHandler<Inputs> = async (data) => {
+    setRequestError("");
 
-if (localStorage.getItem("user")) {
-  return <Navigate to="/home" replace />;
-}
+    try {
+      const res = await userRegister(data);
+      const user = getAuthUser(res.data);
+      if (!user) {
+        setRequestError("Registration succeeded, but the server did not return user details.");
+        return;
+      }
+      saveUser(user);
+      navigate("/home");
+    } catch (error) {
+      const message = axios.isAxiosError<{ message?: string }>(error)
+        ? error.response?.data?.message ?? "Could not create your account. Please try again."
+        : "Could not create your account. Please try again.";
+      setRequestError(message);
+    }
+  };
+
+  if (getStoredUser()) {
+    return <Navigate to="/home" replace />;
+  }
 
   return (
     <main className="flex min-h-screen items-center justify-center px-4 py-8 text-slate-900 sm:px-6">
@@ -94,6 +109,11 @@ if (localStorage.getItem("user")) {
         </header>
 
         <form onSubmit = {handleSubmit(onSubmit) }className="space-y-2.5 px-5 pb-4 pt-3 sm:px-6">
+          {requestError && (
+            <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700" role="alert">
+              {requestError}
+            </p>
+          )}
           <label className="block text-[11px] font-medium text-slate-700" htmlFor="username">
             Username
             <span className="mt-1 block">
