@@ -44,7 +44,7 @@ function Register() {
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isSubmitting },
   } = useForm<Inputs>({
     resolver: zodResolver(userSchema),
   });
@@ -174,10 +174,13 @@ function Register() {
           </label>
 
           <button
-            className="cursor-pointer flex h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-indigo-600 text-[11px] font-semibold text-white transition hover:bg-indigo-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 active:bg-indigo-800"
+            className="flex h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-indigo-600 text-[11px] font-semibold text-white transition hover:bg-indigo-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 active:bg-indigo-800 disabled:cursor-not-allowed disabled:opacity-60"
             type="submit"
+            disabled={isSubmitting}
+            aria-busy={isSubmitting}
           >
-            Create account <ArrowRight size={13} aria-hidden="true" />
+            {isSubmitting ? "Creating account…" : "Create account"}
+            {!isSubmitting && <ArrowRight size={13} aria-hidden="true" />}
           </button>
 
           <p className="pt-0.5 text-center text-[10px] text-slate-500">
