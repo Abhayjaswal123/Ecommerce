@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import axios from "axios";
 import { ArrowRight, Check, Eye, EyeOff, LockKeyhole, Mail, Store } from "lucide-react";
-import { Link, useNavigate } from "react-router";
+import { Link, Navigate, useNavigate } from "react-router";
 import { userLogin } from "../api/api";
 
 const loginSchema = z.object({
@@ -43,6 +43,10 @@ function Login() {
       setRequestError(message);
     }
   };
+
+  if (localStorage.getItem("user")) {
+    return <Navigate to="/home" replace />;
+  }
 
   return (
     <main className="flex min-h-screen items-center justify-center px-4 py-6 text-slate-900 sm:px-6">

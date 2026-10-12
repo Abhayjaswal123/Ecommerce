@@ -1,5 +1,5 @@
 import { ArrowRight, Eye, LockKeyhole, Mail, Store, UserRound } from "lucide-react";
-import { Link, useNavigate } from "react-router";
+import { Link, Navigate, useNavigate } from "react-router";
 import { useForm, type SubmitHandler } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -52,6 +52,10 @@ const navigate = useNavigate();
   );
   navigate("/home")
 };
+
+if (localStorage.getItem("user")) {
+  return <Navigate to="/home" replace />;
+}
 
   return (
     <main className="flex min-h-screen items-center justify-center px-4 py-8 text-slate-900 sm:px-6">
