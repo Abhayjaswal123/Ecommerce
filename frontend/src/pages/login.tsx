@@ -5,7 +5,7 @@ import { z } from "zod";
 import axios from "axios";
 import { ArrowRight, Check, Eye, EyeOff, LockKeyhole, Mail, Store } from "lucide-react";
 import { Link, Navigate, useNavigate } from "react-router";
-import { getAuthUser, userLogin } from "../api/api";
+import { getAuthUser, getCurrentUser, userLogin } from "../api/api";
 import { getStoredUser, saveUser } from "../utils/authStorage";
 
 const loginSchema = z.object({
@@ -32,9 +32,14 @@ function Login() {
 
     try {
       const res = await userLogin(data);
-      const user = getAuthUser(res.data);
+      let user = getAuthUser(res.data);
       if (!user) {
-        setRequestError("Sign-in succeeded, but the server did not return user details.");
+        const currentUserResponse = await getCurrentUser();
+        user = getAuthUser(currentUserResponse.data);
+      }
+
+      if (!user) {
+        setRequestError("Could not load your account details after signing in. Please try again.");
         return;
       }
       saveUser(user);

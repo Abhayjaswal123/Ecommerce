@@ -114,7 +114,7 @@ export const logout = async (req: Request, res: Response) => {
     });
 }
 
-export const checkAuth = (req: Request, res: Response) => {
+export const checkAuth = async (req: Request, res: Response) => {
     const token = req.cookies?.token;
 
     if (!token) {
@@ -125,8 +125,30 @@ export const checkAuth = (req: Request, res: Response) => {
     }
 
     try {
-        verifyAuthToken(token);
-        return res.status(200).json({ success: true });
+        const payload = verifyAuthToken(token);
+        const userId = typeof payload === "object" ? payload.id : undefined;
+        if (typeof userId !== "string") {
+            return res.status(401).json({
+                success: false,
+                message: "Authentication required.",
+            });
+        }
+
+        const user = await userModal.findById(userId);
+        if (!user) {
+            return res.status(401).json({
+                success: false,
+                message: "Authentication required.",
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            user: {
+                username: user.username,
+                email: user.email,
+            },
+        });
     } catch {
         return res.status(401).json({
             success: false,

@@ -53,11 +53,10 @@ function Register() {
 
     try {
       const res = await userRegister(data);
-      const user = getAuthUser(res.data);
-      if (!user) {
-        setRequestError("Registration succeeded, but the server did not return user details.");
-        return;
-      }
+      const user = getAuthUser(res.data) ?? {
+        username: data.username,
+        email: data.email,
+      };
       saveUser(user);
       navigate("/home");
     } catch (error) {

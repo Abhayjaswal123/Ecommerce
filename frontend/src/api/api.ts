@@ -33,6 +33,10 @@ export const userLogin = (data: { email: string; password: string }) => {
   return api.post<unknown>("/api/login", data);
 };
 
+export const getCurrentUser = () => {
+  return api.get<unknown>("/api/me");
+};
+
 export const logout = () => {
   return api.post("/api/logout");
 };
