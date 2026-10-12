@@ -9,6 +9,3 @@ if (!JWT_SECRET) {
 
 export const generateAuthToken = (userId: string): string =>
     jwt.sign({ id: userId }, JWT_SECRET);
-
-export const verifyAuthToken = (token: string): string | jwt.JwtPayload =>
-    jwt.verify(token, JWT_SECRET);

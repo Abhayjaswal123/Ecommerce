@@ -1,7 +1,7 @@
 import { type Request, type Response } from "express";
 import bcrypt from "bcrypt";
 import userModal from "../model/user.model.js";
-import { generateAuthToken, verifyAuthToken } from "../utils/auth.util.js";
+import { generateAuthToken } from "../utils/auth.util.js";
 
 export const register = async (req: Request, res: Response) => {
     const { email, username, password } = req.body;
@@ -113,46 +113,3 @@ export const logout = async (req: Request, res: Response) => {
         message: "Logout Successful",
     });
 }
-
-export const checkAuth = async (req: Request, res: Response) => {
-    const token = req.cookies?.token;
-
-    if (!token) {
-        return res.status(401).json({
-            success: false,
-            message: "Authentication required.",
-        });
-    }
-
-    try {
-        const payload = verifyAuthToken(token);
-        const userId = typeof payload === "object" ? payload.id : undefined;
-        if (typeof userId !== "string") {
-            return res.status(401).json({
-                success: false,
-                message: "Authentication required.",
-            });
-        }
-
-        const user = await userModal.findById(userId);
-        if (!user) {
-            return res.status(401).json({
-                success: false,
-                message: "Authentication required.",
-            });
-        }
-
-        return res.status(200).json({
-            success: true,
-            user: {
-                username: user.username,
-                email: user.email,
-            },
-        });
-    } catch {
-        return res.status(401).json({
-            success: false,
-            message: "Authentication required.",
-        });
-    }
-};
