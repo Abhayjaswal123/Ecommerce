@@ -25,8 +25,12 @@ export const userRegister = (data: {
   username: string;
   email: string;
   password: string;
+  role?: "user" | "vendor";
 }) => {
-  return api.post<unknown>("/api/register", data);
+  return api.post<unknown>("/api/register", {
+    ...data,
+    role: data.role ?? "user",
+  });
 };
 
 export const userLogin = (data: { email: string; password: string }) => {

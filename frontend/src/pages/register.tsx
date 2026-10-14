@@ -18,9 +18,7 @@ export const userSchema = z.object({
       "Username can only contain letters, numbers, and underscores"
     ),
 
-  email: z
-    .string()
-    .email("Please enter a valid email address"),
+  email: z.string().email("Please enter a valid email address"),
 
   password: z
     .string()
@@ -32,10 +30,11 @@ export const userSchema = z.object({
       /[^a-zA-Z0-9]/,
       "Password must contain at least one special character"
     ),
+
+  role: z.enum(["user", "vendor"]),
 });
 
 type Inputs = z.infer<typeof userSchema>;
-
 
 function Register() {
   const navigate = useNavigate();
@@ -47,7 +46,11 @@ function Register() {
     formState: { errors, isSubmitting },
   } = useForm<Inputs>({
     resolver: zodResolver(userSchema),
+    defaultValues: {
+      role: "user",
+    },
   });
+
   const onSubmit: SubmitHandler<Inputs> = async (data) => {
     setRequestError("");
 
@@ -56,6 +59,7 @@ function Register() {
       const user = getAuthUser(res.data) ?? {
         username: data.username,
         email: data.email,
+        role: data.role ?? "user",
       };
       saveUser(user);
       navigate("/home");
@@ -107,7 +111,7 @@ function Register() {
           </div>
         </header>
 
-        <form onSubmit = {handleSubmit(onSubmit) }className="space-y-2.5 px-5 pb-4 pt-3 sm:px-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-2.5 px-5 pb-4 pt-3 sm:px-6">
           {requestError && (
             <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700" role="alert">
               {requestError}
@@ -171,6 +175,24 @@ function Register() {
               </span>
             </span>
             {errors?.password && (<p className="text-red-500 font-normal text-sm">{errors?.password?.message}</p>) }
+          </label>
+
+          <label className="block text-[11px] font-medium text-slate-700" htmlFor="role">
+            Role
+            <span className="mt-1 block">
+              <span className="flex h-[38px] items-center gap-2 rounded-lg border border-slate-200 px-2.5 text-slate-400 transition focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100">
+                <select
+                  className="h-full min-w-0 flex-1 bg-transparent text-xs text-slate-800 outline-none"
+                  id="role"
+                  {...register("role")}
+                  defaultValue="user"
+                >
+                  <option value="user">User</option>
+                  <option value="vendor">Vendor</option>
+                </select>
+              </span>
+            </span>
+            {errors?.role && <p className="text-red-500 font-normal text-sm">{errors.role.message}</p>}
           </label>
 
           <button

@@ -7,5 +7,12 @@ if (!JWT_SECRET) {
     throw new Error("JWT_SECRET is not set in the environment.");
 }
 
-export const generateAuthToken = (userId: string): string =>
-    jwt.sign({ id: userId }, JWT_SECRET);
+export const generateAuthToken = (
+    userId: string,
+    role: string
+): string =>
+    jwt.sign(
+        { id: userId, role },
+        JWT_SECRET,
+        { expiresIn: "1d" }
+    );

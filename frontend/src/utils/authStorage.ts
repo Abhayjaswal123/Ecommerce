@@ -1,6 +1,7 @@
 export type AuthUser = {
   username: string;
   email: string;
+  role?: "user" | "vendor";
 };
 
 export const isAuthUser = (value: unknown): value is AuthUser => {
@@ -9,7 +10,11 @@ export const isAuthUser = (value: unknown): value is AuthUser => {
   }
 
   const user = value as Record<string, unknown>;
-  return typeof user.username === "string" && typeof user.email === "string";
+  return (
+    typeof user.username === "string" &&
+    typeof user.email === "string" &&
+    (user.role === undefined || user.role === "user" || user.role === "vendor")
+  );
 };
 
 export const getStoredUser = (): AuthUser | null => {

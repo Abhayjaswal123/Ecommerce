@@ -4,7 +4,8 @@ import userModal from "../model/user.model.js";
 import { generateAuthToken } from "../utils/auth.util.js";
 
 export const register = async (req: Request, res: Response) => {
-    const { email, username, password } = req.body;
+    const { email, username, password, role = "user" } = req.body;
+    const start = Date.now();
 
     if (!email || !username || !password) {
         return res.status(400).json({
@@ -26,10 +27,11 @@ export const register = async (req: Request, res: Response) => {
     const user = await userModal.create({
         username,
         email,
-        password: hashPassword
+        password: hashPassword,
+        role
     })
 
-    const token = generateAuthToken(user._id.toString());
+    const token = generateAuthToken(user._id.toString(),role);
 
     res.cookie("token", token, {
         httpOnly: true,
@@ -39,12 +41,15 @@ export const register = async (req: Request, res: Response) => {
         path: "/"
     });
 
+    console.log("Before response:", Date.now() - start);
+
     res.status(200).json({
         success: true,
         message: "Registration Successful",
         user: {
             username: user.username,
-            email: user.email
+            email: user.email,
+            role: user.role
         }
     })
 
@@ -79,7 +84,7 @@ export const login = async (req: Request, res: Response) => {
         })
     }
 
-    const token = generateAuthToken(userExisted._id.toString());
+    const token = generateAuthToken(userExisted._id.toString(),userExisted.role);
 
     res.cookie("token", token, {
         httpOnly: true,
@@ -94,7 +99,8 @@ export const login = async (req: Request, res: Response) => {
         message: "Login Successful",
         user: {
             username: userExisted.username,
-            email: userExisted.email
+            email: userExisted.email,
+            role: userExisted.role
         }
     })
 
