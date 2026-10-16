@@ -1,0 +1,123 @@
+
+import {
+  LogOut,
+  ShoppingBag,
+  LayoutDashboard,
+  Package,
+  ShoppingCart,
+  Truck,
+} from "lucide-react";
+
+import { Link, NavLink, useNavigate } from "react-router";
+import { logout } from "../api/api";
+import { getStoredUser } from "../utils/authStorage";
+
+const PRIMARY_COLOR = "#4F35F5";
+
+const navItems = [
+  { name: "Dashboard", path: "/home", icon: LayoutDashboard },
+  { name: "Products", path: "/products", icon: Package },
+  { name: "Orders", path: "/orders", icon: ShoppingCart },
+  { name: "Delivered", path: "/delivered", icon: Truck },
+];
+
+function Sidebar() {
+  const navigate = useNavigate();
+  const user = getStoredUser();
+
+  const logoutUser = async () => {
+    try {
+      await logout();
+      navigate("/", { replace: true });
+    } catch (error) {
+      console.error("Logout API failed:", error);
+    } finally {
+      localStorage.removeItem("user");
+    }
+  };
+
+  return (
+    <aside className="fixed inset-y-0 left-0 z-20 flex w-64 flex-col bg-slate-950 p-5 text-white">
+      {/* Logo */}
+      <Link to="/home" className="mb-10 flex items-center gap-3">
+        <span
+          className="grid size-10 place-items-center rounded-xl text-white"
+          style={{ backgroundColor: PRIMARY_COLOR }}
+        >
+          <ShoppingBag size={21} />
+        </span>
+
+        <span>
+          <span className="block text-lg font-bold tracking-tight">
+            CreateSpace
+          </span>
+          <span className="text-xs text-slate-400">
+            Seller Dashboard
+          </span>
+        </span>
+      </Link>
+
+      {/* Navigation */}
+      <p className="mb-3 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+        Menu
+      </p>
+
+      <nav className="flex flex-col gap-2">
+        {navItems.map(({ name, path, icon: Icon }) => (
+          <NavLink
+            key={path}
+            to={path}
+            end={path === "/home"}
+            className={({ isActive }) =>
+              `flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-200 ${
+                isActive
+                  ? "text-white shadow-lg shadow-indigo-950/30"
+                  : "text-slate-300 hover:bg-slate-800 hover:text-white"
+              }`
+            }
+            style={({ isActive }) =>
+              isActive
+                ? { backgroundColor: PRIMARY_COLOR }
+                : undefined
+            }
+          >
+            <Icon size={19} />
+            <span>{name}</span>
+          </NavLink>
+        ))}
+      </nav>
+
+      {/* User Profile and Logout */}
+      <div className="mt-auto border-t border-slate-800 pt-4">
+        <div className="mb-4 flex items-center gap-3 px-2">
+          <div
+            className="grid size-10 shrink-0 place-items-center rounded-full font-semibold text-indigo-300"
+            style={{ backgroundColor: "rgba(79, 53, 245, 0.2)" }}
+          >
+            {user?.username?.charAt(0)?.toUpperCase() || "U"}
+          </div>
+
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium">
+              {user?.username || "User"}
+            </p>
+            <p className="text-xs text-slate-400">
+              Seller account
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={logoutUser}
+          type="button"
+          className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-red-400 transition hover:bg-red-500/10 hover:text-red-300"
+        >
+          <LogOut size={19} />
+          <span>Logout</span>
+        </button>
+      </div>
+    </aside>
+  );
+}
+
+export default Sidebar;

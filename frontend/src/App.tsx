@@ -1,9 +1,21 @@
-import { BrowserRouter, Navigate, Route, Routes } from "react-router";
-import ProtectedRoute from "./components/ProtectedRoute";
-import Home from "./pages/home";
-import Login from "./pages/login";
-import Register from "./pages/register";
-import Products from "./pages/products"
+import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router";
+import ProtectedRoute from "./components/ProtectedRoute.tsx";
+import Sidebar from "./components/Sidebar.tsx";
+import Home from "./pages/home.tsx";
+import Login from "./pages/login.tsx";
+import Register from "./pages/register.tsx";
+import VendorProducts from "./pages/salerProduct.tsx";
+
+function AppLayout() {
+  return (
+    <div className="min-h-screen bg-[#171821] text-slate-100">
+      <Sidebar />
+      <main className="ml-64 min-h-screen bg-[#171821]">
+        <Outlet />
+      </main>
+    </div>
+  );
+}
 
 function App() {
   return (
@@ -13,9 +25,11 @@ function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />
         <Route element={<ProtectedRoute />}>
-          <Route path="/home" element={<Home />} />
-          <Route path="/dashboard" element={<Home />} />
-          <Route path="/products" element={<Products />} />
+          <Route element={<AppLayout />}>
+            <Route path="/home" element={<Home />} />
+            <Route path="/dashboard" element={<Home />} />
+            <Route path="/products" element={<VendorProducts />} />
+          </Route>
         </Route>
         <Route path="*" element={<Navigate to="/register" replace />} />
       </Routes>

@@ -28,6 +28,22 @@ const productSchema = new mongoose.Schema(
       min: 0,
       default: 0,
     },
+    category: {
+      type: String,
+      required: true,
+      enum: [
+        "Electronics",
+        "Clothing",
+        "Footwear",
+        "Home & Kitchen",
+        "Beauty",
+        "Books",
+        "Sports",
+        "Accessories",
+        "Other",
+      ],
+      trim: true,
+    },
     vendor: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "usermodal",
@@ -40,4 +56,5 @@ const productSchema = new mongoose.Schema(
 );
 
 const ProductModel = mongoose.model("product", productSchema);
+
 export default ProductModel;

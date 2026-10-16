@@ -6,7 +6,7 @@ export const createProduct = async (
     res: Response
 ) => {
     try {
-        const { name, img, discription, price, quantity } = req.body;
+        const { name, img, discription, price, quantity, category } = req.body;
 
         const product = await ProductModel.create({
             name,
@@ -15,6 +15,7 @@ export const createProduct = async (
             price,
             quantity,
             vendor: req.user.id,
+            category
         });
 
         return res.status(201).json({
