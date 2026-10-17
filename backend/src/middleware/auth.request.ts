@@ -3,15 +3,19 @@ import jwt from "jsonwebtoken";
 
 const JWT_SECRET = process.env.JWT_SECRET!;
 
-interface AuthRequest extends Request {
-    user?: {
-        id: string;
-        role: string;
-    };
+declare global {
+    namespace Express {
+        interface Request {
+            user?: {
+                id: string;
+                role: string;
+            };
+        }
+    }
 }
 
 export const verifyUser = (
-    req: AuthRequest,
+    req: Request,
     res: Response,
     next: NextFunction
 ) => {
@@ -45,7 +49,7 @@ export const verifyUser = (
 };
 
 export const verifyVendor = (
-    req: AuthRequest,
+    req: Request,
     res: Response,
     next: NextFunction
 ) => {
@@ -60,7 +64,7 @@ export const verifyVendor = (
 };
 
 export const verifyUserRole = (
-    req: AuthRequest,
+    req: Request,
     res: Response,
     next: NextFunction
 ) => {

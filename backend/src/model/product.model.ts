@@ -1,5 +1,17 @@
 import mongoose from "mongoose";
 
+export const productCategories = [
+  "Electronics",
+  "Clothing",
+  "Footwear",
+  "Home & Kitchen",
+  "Beauty",
+  "Books",
+  "Sports",
+  "Accessories",
+  "Other",
+] as const;
+
 const productSchema = new mongoose.Schema(
   {
     name: {
@@ -12,7 +24,7 @@ const productSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
-    discription: {
+    description: {
       type: String,
       trim: true,
       default: "",
@@ -31,18 +43,7 @@ const productSchema = new mongoose.Schema(
     category: {
       type: String,
       required: true,
-      enum: [
-        "Electronics",
-        "Clothing",
-        "Footwear",
-        "Home & Kitchen",
-        "Beauty",
-        "Books",
-        "Sports",
-        "Accessories",
-        "Other",
-      ],
-      trim: true,
+      enum: productCategories,
     },
     vendor: {
       type: mongoose.Schema.Types.ObjectId,
