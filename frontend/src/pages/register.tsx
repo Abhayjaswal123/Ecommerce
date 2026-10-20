@@ -6,7 +6,8 @@ import { useForm, type SubmitHandler } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { getAuthUser, userRegister } from "../api/api";
-import { getStoredUser, saveUser } from "../utils/authStorage";
+import { saveUser } from "../utils/authStorage";
+import { useAuth } from "../context/Authcontext";
 
 export const userSchema = z.object({
   username: z
@@ -39,6 +40,7 @@ type Inputs = z.infer<typeof userSchema>;
 function Register() {
   const navigate = useNavigate();
   const [requestError, setRequestError] = useState("");
+  const { user: currentUser, loading, setUser } = useAuth();
 
   const {
     register,
@@ -61,6 +63,7 @@ function Register() {
         email: data.email,
         role: data.role ?? "user",
       };
+      setUser(user);
       saveUser(user);
       navigate("/home");
     } catch (error) {
@@ -71,7 +74,7 @@ function Register() {
     }
   };
 
-  if (getStoredUser()) {
+  if (!loading && currentUser) {
     return <Navigate to="/home" replace />;
   }
 

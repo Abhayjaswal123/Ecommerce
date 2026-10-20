@@ -2,9 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import axios from "axios";
 import {
     Boxes,
-    ImagePlus,
     Package,
-    Pencil,
     Plus,
     Search,
     Trash2,
@@ -18,9 +16,9 @@ import {
     type ProductCategory,
     type ProductFilters,
     type ProductInput,
+    type ProductListResponse,
     updateProduct,
 } from "@/api/product";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -49,6 +47,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import ProductSection from "@/components/resusable/ProductSection";
 
 const categories: ProductCategory[] = [
     "Electronics",
@@ -98,6 +97,8 @@ const getErrorMessage = (error: unknown) => {
 
 export default function VendorProducts() {
     const [products, setProducts] = useState<Product[]>([]);
+    const [topProducts, setTopProducts] = useState<Product[]>([]);
+    const [likedProducts, setLikedProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
     const [pageError, setPageError] = useState("");
     const [search, setSearch] = useState("");
@@ -123,39 +124,43 @@ export default function VendorProducts() {
             : {}),
     }), [categoryFilter, search, stockFilter]);
 
-    const loadProducts = useCallback(async (productFilters: ProductFilters) => {
+    const setProductSections = useCallback((data: ProductListResponse) => {
+        const uniqueProducts = (items: Product[]) =>
+            Array.from(new Map(items.map((product) => [product._id, product])).values());
+
+        setProducts(uniqueProducts(data.products));
+        setTopProducts(uniqueProducts(data.topProducts));
+        setLikedProducts(uniqueProducts(data.likedProducts));
+    }, []);
+
+    const loadProducts = useCallback(async (
+        productFilters: ProductFilters,
+        isCurrent: () => boolean = () => true,
+    ) => {
         setLoading(true);
         setPageError("");
         try {
             const response = await getVendorProducts(productFilters);
-            setProducts(response.data.products);
+            if (isCurrent()) setProductSections(response.data);
         } catch (error) {
-            setPageError(getErrorMessage(error));
+            if (isCurrent()) setPageError(getErrorMessage(error));
         } finally {
-            setLoading(false);
+            if (isCurrent()) setLoading(false);
         }
-    }, []);
+    }, [setProductSections]);
 
     useEffect(() => {
         let active = true;
-        const timer = window.setTimeout(async () => {
-            setLoading(true);
-            setPageError("");
-            try {
-                const response = await getVendorProducts(filters);
-                if (active) setProducts(response.data.products);
-            } catch (error) {
-                if (active) setPageError(getErrorMessage(error));
-            } finally {
-                if (active) setLoading(false);
-            }
-        }, search.trim() ? 300 : 0);
+        const timer = window.setTimeout(
+            () => void loadProducts(filters, () => active),
+            search.trim() ? 300 : 0,
+        );
 
         return () => {
             active = false;
             window.clearTimeout(timer);
         };
-    }, [filters, search]);
+    }, [filters, loadProducts, search]);
 
     const totalStock = products.reduce(
         (total, product) => total + product.quantity,
@@ -358,48 +363,40 @@ export default function VendorProducts() {
                     </div>
                 </section>
 
-                <Card className="overflow-hidden rounded-2xl border-white/10 bg-[#20212b] text-white shadow-sm">
-                    <CardContent className="p-4 sm:p-6">
-                        <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                            <div>
-                                <h2 className="text-xl font-bold text-white">
-                                    All Products
-                                </h2>
-                                <p className="mt-1 text-sm text-slate-400">
-                                    Manage pricing, stock, and product details.
-                                </p>
-                            </div>
-                            <Badge className="w-fit border-0 bg-white/10 text-slate-200">
-                                {products.length} products
-                            </Badge>
-                        </div>
+                <div className="space-y-8">
+                    {/* 1. Top Products */}
+                    <ProductSection
+                        title="Top Products"
+                        description="Your featured products."
+                        products={topProducts}
+                        loading={loading}
+                        emptyMessage="No products have customer likes yet."
+                        onEdit={openEditDialog}
+                        onDelete={setProductToDelete}
+                    />
 
-                        {loading ? (
-                            <p className="py-10 text-center text-slate-400">
-                                Loading your products...
-                            </p>
-                        ) : products.length === 0 ? (
-                            <p className="py-10 text-center text-slate-400">
-                                {pageError
-                                    ? "Unable to load products."
-                                    : products.length === 0
-                                    ? "You have not added any products yet."
-                                    : "No products match your search and filters."}
-                            </p>
-                        ) : (
-                            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                                {products.map((product) => (
-                                    <InventoryProductCard
-                                        key={product._id}
-                                        product={product}
-                                        onEdit={() => openEditDialog(product)}
-                                        onDelete={() => setProductToDelete(product)}
-                                    />
-                                ))}
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
+                    {/* 2. Liked Products */}
+                    <ProductSection
+                        title="Liked Products"
+                        description="Products customers have liked."
+                        products={likedProducts}
+                        loading={loading}
+                        emptyMessage="No customers have liked your products yet."
+                        onEdit={openEditDialog}
+                        onDelete={setProductToDelete}
+                    />
+
+                    {/* 3. All Products */}
+                    <ProductSection
+                        title="All Products"
+                        description="Manage pricing, stock, and product details."
+                        products={products}
+                        loading={loading}
+                        emptyMessage="No products match your search and filters."
+                        onEdit={openEditDialog}
+                        onDelete={setProductToDelete}
+                    />
+                </div>
 
                 <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
                     <DialogContent className="border-white/10 bg-[#20212b] text-white sm:max-w-[560px]">
@@ -575,8 +572,8 @@ export default function VendorProducts() {
                                     {saving
                                         ? "Saving..."
                                         : editingProduct
-                                          ? "Save Changes"
-                                          : "Add Product"}
+                                            ? "Save Changes"
+                                            : "Add Product"}
                                 </Button>
                             </div>
                         </form>
@@ -623,97 +620,6 @@ export default function VendorProducts() {
                 </AlertDialog>
             </div>
         </div>
-    );
-}
-
-function InventoryProductCard({
-    product,
-    onEdit,
-    onDelete,
-}: {
-    product: Product;
-    onEdit: () => void;
-    onDelete: () => void;
-}) {
-    const stockLabel =
-        product.quantity === 0
-            ? "Out of Stock"
-            : product.quantity <= 5
-              ? "Low Stock"
-              : "In Stock";
-
-    return (
-        <article className="group overflow-hidden rounded-xl border border-white/[0.08] bg-[#171821] transition-colors hover:border-white/20">
-            <div className="relative flex h-48 items-center justify-center overflow-hidden bg-[#252633]">
-                {product.img ? (
-                    <img
-                        src={product.img}
-                        alt={product.name}
-                        className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
-                    />
-                ) : (
-                    <ImagePlus className="size-12 text-slate-500" />
-                )}
-                <Badge
-                    className={`absolute right-3 top-3 border-0 ${
-                        product.quantity === 0
-                            ? "bg-red-500/15 text-red-400"
-                            : product.quantity <= 5
-                              ? "bg-amber-500/15 text-amber-400"
-                              : "bg-emerald-500/15 text-emerald-400"
-                    }`}
-                >
-                    {stockLabel}
-                </Badge>
-            </div>
-
-            <div className="space-y-4 p-4">
-                <div>
-                    <p className="text-xs font-medium text-[#a5e0d9]">
-                        {product.category}
-                    </p>
-                    <h3 className="mt-1 truncate text-lg font-semibold text-white">
-                        {product.name}
-                    </h3>
-                    <p className="mt-1 line-clamp-2 min-h-10 text-sm text-slate-400">
-                        {product.description || "No description provided."}
-                    </p>
-                </div>
-
-                <div className="flex items-center justify-between gap-2 border-t border-white/[0.08] pt-4">
-                    <div>
-                        <p className="text-xl font-bold text-white">
-                            {currency(product.price)}
-                        </p>
-                        <p className="mt-1 text-xs text-slate-400">
-                            Stock: {product.quantity} units
-                        </p>
-                    </div>
-                    <div className="flex gap-2">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            aria-label={`Edit ${product.name}`}
-                            onClick={onEdit}
-                            className="size-9 border-white/10 bg-[#252633] text-slate-200 hover:bg-white/10 hover:text-white"
-                        >
-                            <Pencil className="size-4" />
-                        </Button>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            aria-label={`Delete ${product.name}`}
-                            onClick={onDelete}
-                            className="size-9 border-red-500/20 bg-red-500/5 text-red-400 hover:bg-red-500/15 hover:text-red-300"
-                        >
-                            <Trash2 className="size-4" />
-                        </Button>
-                    </div>
-                </div>
-            </div>
-        </article>
     );
 }
 

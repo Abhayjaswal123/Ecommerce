@@ -37,7 +37,7 @@ export const verifyUser = (
         req.user = {
             id: decoded.id,
             role: decoded.role,
-        };
+        }; 
 
         next();
     } catch {

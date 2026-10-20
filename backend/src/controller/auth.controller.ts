@@ -31,7 +31,7 @@ export const register = async (req: Request, res: Response) => {
         role
     })
 
-    const token = generateAuthToken(user._id.toString(),role);
+    const token = generateAuthToken(user._id.toString(), role);
 
     res.cookie("token", token, {
         httpOnly: true,
@@ -84,7 +84,7 @@ export const login = async (req: Request, res: Response) => {
         })
     }
 
-    const token = generateAuthToken(userExisted._id.toString(),userExisted.role);
+    const token = generateAuthToken(userExisted._id.toString(), userExisted.role);
 
     res.cookie("token", token, {
         httpOnly: true,
@@ -119,3 +119,41 @@ export const logout = async (req: Request, res: Response) => {
         message: "Logout Successful",
     });
 }
+
+export const getMe = async (
+    req: Request,
+    res: Response
+): Promise<void> => {
+    try {
+        const userId = req.user?.id;
+        if (!userId) {
+            res.status(401).json({
+                success: false,
+                message: "Please login first",
+            });
+            return;
+        }
+
+        const user = await userModal.findById(userId).select("-password");
+
+        if (!user) {
+            res.status(401).json({
+                success: false,
+                message: "User not found",
+            });
+            return;
+        }
+
+        res.status(200).json({
+            success: true,
+            user,
+        });
+    } catch (error) {
+        console.error("Get current user error:", error);
+
+        res.status(500).json({
+            success: false,
+            message: "Internal server error",
+        });
+    }
+};

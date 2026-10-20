@@ -11,6 +11,7 @@ import {
 import { Link, NavLink, useNavigate } from "react-router";
 import { logout } from "../api/api";
 import { getStoredUser } from "../utils/authStorage";
+import { useAuth } from "../context/Authcontext";
 
 const PRIMARY_COLOR = "#4F35F5";
 
@@ -24,6 +25,7 @@ const navItems = [
 function Sidebar() {
   const navigate = useNavigate();
   const user = getStoredUser();
+  const { setUser } = useAuth();
 
   const logoutUser = async () => {
     try {
@@ -32,6 +34,7 @@ function Sidebar() {
     } catch (error) {
       console.error("Logout API failed:", error);
     } finally {
+      setUser(null);
       localStorage.removeItem("user");
     }
   };

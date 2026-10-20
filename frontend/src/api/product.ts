@@ -19,14 +19,17 @@ export type Product = {
   price: number;
   quantity: number;
   category: ProductCategory;
+  likesCount?: number;
 };
 
-export type ProductInput = Omit<Product, "_id">;
+export type ProductInput = Omit<Product, "_id" | "likesCount">;
 
-type ProductListResponse = {
+export type ProductListResponse = {
   success: boolean;
   message: string;
   products: Product[];
+  topProducts: Product[];
+  likedProducts: Product[];
 };
 
 type ProductResponse = {
@@ -50,6 +53,16 @@ export const getVendorProducts = (filters: ProductFilters = {}) =>
   api.get<ProductListResponse>("/api/products/vendor", {
     params: filters,
   });
+
+export const likeProduct = (id: string) =>
+  api.post<{ success: boolean; liked: boolean; likesCount: number }>(
+    `/api/products/${id}/like`,
+  );
+
+export const unlikeProduct = (id: string) =>
+  api.delete<{ success: boolean; liked: boolean; likesCount: number }>(
+    `/api/products/${id}/like`,
+  );
 
 export const createProduct = (product: ProductInput) =>
   api.post<ProductResponse>("/api/products/create", product);

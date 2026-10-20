@@ -1,6 +1,19 @@
 import { type Request, type Response } from "express";
-import mongoose from "mongoose";
-import ProductModel, { productCategories } from "../model/product.model.js";
+import mongoose, { type QueryFilter } from "mongoose";
+import ProductModel, {
+  productCategories,
+  type ProductCategory,
+  type ProductRecord,
+} from "../model/product.model.js";
+
+const parseProductCategory = (value: unknown): ProductCategory | undefined => {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmedValue = value.trim();
+  return productCategories.find((category) => category === trimmedValue);
+};
 
 export const createProduct = async (
   req: Request,
@@ -81,6 +94,7 @@ export const getVendorProducts = async (
 ) => {
   try {
     const vendorId = req.user?.id;
+
     if (!vendorId) {
       return res.status(401).json({
         success: false,
@@ -89,45 +103,28 @@ export const getVendorProducts = async (
     }
 
     const { search, category, stock } = req.query;
-    if (
-      (search !== undefined && typeof search !== "string") ||
-      (category !== undefined && typeof category !== "string") ||
-      (stock !== undefined && typeof stock !== "string")
-    ) {
+
+    if (search !== undefined && typeof search !== "string") {
       return res.status(400).json({
         success: false,
-        message: "Search, category, and stock filters must be single values.",
+        message: "Invalid search filter.",
       });
     }
 
-    const normalizedSearch = search?.trim();
-    const normalizedCategory = category?.trim();
-    const normalizedStock = stock?.trim();
-
-    if (normalizedSearch && normalizedSearch.length > 100) {
+    const categoryValue = parseProductCategory(category);
+    if (category !== undefined && !categoryValue) {
       return res.status(400).json({
         success: false,
-        message: "Search must be 100 characters or fewer.",
+        message: "Invalid category filter.",
       });
     }
-
-    const isProductCategory = (value: string): value is (typeof productCategories)[number] =>
-      productCategories.some((productCategory) => productCategory === value);
-
-    if (normalizedCategory && !isProductCategory(normalizedCategory)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid product category filter.",
-      });
-    }
-    const validCategory =
-      normalizedCategory && isProductCategory(normalizedCategory)
-        ? normalizedCategory
-        : undefined;
 
     if (
-      normalizedStock &&
-      !["in-stock", "low-stock", "out-of-stock"].includes(normalizedStock)
+      stock !== undefined &&
+      stock !== "all" &&
+      stock !== "in-stock" &&
+      stock !== "low-stock" &&
+      stock !== "out-of-stock"
     ) {
       return res.status(400).json({
         success: false,
@@ -135,44 +132,46 @@ export const getVendorProducts = async (
       });
     }
 
-    type SearchCondition = { $regex: string; $options: "i" };
-    const filter: {
-      vendor: string;
-      $or?: ({ name: SearchCondition } | { description: SearchCondition })[];
-      category?: (typeof productCategories)[number];
-      quantity?: number | { $gt?: number; $lte?: number };
-    } = {
-      vendor: vendorId,
-    };
-
-    if (normalizedSearch) {
-      const escapedSearch = normalizedSearch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const searchText = typeof search === "string" ? search.trim() : "";
+    const escapedSearch = searchText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const filter: QueryFilter<ProductRecord> = { vendor: vendorId };
+    if (escapedSearch) {
       filter.$or = [
         { name: { $regex: escapedSearch, $options: "i" } },
         { description: { $regex: escapedSearch, $options: "i" } },
       ];
     }
-
-    if (validCategory) {
-      filter.category = validCategory;
+    if (categoryValue) {
+      filter.category = categoryValue;
     }
-
-    if (normalizedStock === "in-stock") {
+    if (stock === "in-stock") {
       filter.quantity = { $gt: 5 };
-    } else if (normalizedStock === "low-stock") {
+    } else if (stock === "low-stock") {
       filter.quantity = { $gt: 0, $lte: 5 };
-    } else if (normalizedStock === "out-of-stock") {
+    } else if (stock === "out-of-stock") {
       filter.quantity = 0;
     }
 
-    const products = await ProductModel.find(filter)
+    const storedProducts = await ProductModel.find(filter)
+      .select("+likedBy")
       .sort({ createdAt: -1 })
       .lean();
+
+    const products = storedProducts.map(({ likedBy, ...product }) => ({
+      ...product,
+      likesCount: likedBy?.length ?? 0,
+    }));
+    const likedProducts = products.filter((product) => product.likesCount > 0);
+    const topProducts = [...likedProducts]
+      .sort((a, b) => b.likesCount - a.likesCount)
+      .slice(0, 4);
 
     return res.status(200).json({
       success: true,
       message: "Vendor products fetched successfully.",
       products,
+      topProducts,
+      likedProducts,
     });
   } catch (error) {
     console.error("Fetch vendor products error:", error);
@@ -180,6 +179,102 @@ export const getVendorProducts = async (
     return res.status(500).json({
       success: false,
       message: "Failed to fetch vendor products.",
+    });
+  }
+};
+
+export const likeProduct = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Please login first.",
+      });
+    }
+
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid product ID.",
+      });
+    }
+
+    const product = await ProductModel.findByIdAndUpdate(
+      id,
+      { $addToSet: { likedBy: userId } },
+      { new: true },
+    )
+      .select("+likedBy")
+      .lean();
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      liked: true,
+      likesCount: product.likedBy?.length ?? 0,
+    });
+  } catch (error) {
+    console.error("Like product error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to like product.",
+    });
+  }
+};
+
+export const unlikeProduct = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Please login first.",
+      });
+    }
+
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid product ID.",
+      });
+    }
+
+    const product = await ProductModel.findByIdAndUpdate(
+      id,
+      { $pull: { likedBy: userId } },
+      { new: true },
+    )
+      .select("+likedBy")
+      .lean();
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      liked: false,
+      likesCount: product.likedBy?.length ?? 0,
+    });
+  } catch (error) {
+    console.error("Unlike product error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to unlike product.",
     });
   }
 };
@@ -198,6 +293,7 @@ export const updateProduct = async (
     }
 
     const { id } = req.params;
+    const { name, img, description, price, quantity, category } = req.body;
 
     if (!mongoose.isValidObjectId(id)) {
       return res.status(400).json({
@@ -211,7 +307,7 @@ export const updateProduct = async (
         _id: id,
         vendor: vendorId,
       },
-      req.body,
+      { name, img, description, price, quantity, category },
       {
         new: true,
         runValidators: true,

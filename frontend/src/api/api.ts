@@ -40,3 +40,8 @@ export const userLogin = (data: { email: string; password: string }) => {
 export const logout = () => {
   return api.post("/api/logout");
 };
+
+export const getCurrentUser = async () => {
+  const response = await api.get("/api/me");
+  return response.data.user;
+};

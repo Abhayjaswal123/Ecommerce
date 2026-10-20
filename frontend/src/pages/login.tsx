@@ -6,7 +6,8 @@ import axios from "axios";
 import { ArrowRight, Check, Eye, EyeOff, LockKeyhole, Mail, Store } from "lucide-react";
 import { Link, Navigate, useNavigate } from "react-router";
 import { getAuthUser, userLogin } from "../api/api";
-import { getStoredUser, saveUser } from "../utils/authStorage";
+import { saveUser } from "../utils/authStorage";
+import { useAuth } from "../context/Authcontext";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -26,6 +27,7 @@ function Login() {
   } = useForm<LoginInputs>({
     resolver: zodResolver(loginSchema),
   });
+  const { user, loading, setUser } = useAuth();
 
   const onSubmit: SubmitHandler<LoginInputs> = async (data) => {
     setRequestError("");
@@ -37,6 +39,7 @@ function Login() {
         setRequestError("Sign-in succeeded, but the server did not return user details.");
         return;
       }
+      setUser(user);
       saveUser(user);
       navigate("/home");
     } catch (error) {
@@ -47,7 +50,7 @@ function Login() {
     }
   };
 
-  if (getStoredUser()) {
+  if (!loading && user) {
     return <Navigate to="/home" replace />;
   }
 

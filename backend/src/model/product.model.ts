@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import type { InferSchemaType } from "mongoose";
 
 export const productCategories = [
   "Electronics",
@@ -11,6 +12,8 @@ export const productCategories = [
   "Accessories",
   "Other",
 ] as const;
+
+export type ProductCategory = (typeof productCategories)[number];
 
 const productSchema = new mongoose.Schema(
   {
@@ -50,11 +53,23 @@ const productSchema = new mongoose.Schema(
       ref: "usermodal",
       required: true,
     },
+    likedBy: {
+      type: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "usermodal",
+        },
+      ],
+      default: [],
+      select: false,
+    },
   },
   {
     timestamps: true,
   }
 );
+
+export type ProductRecord = InferSchemaType<typeof productSchema>;
 
 const ProductModel = mongoose.model("product", productSchema);
 
