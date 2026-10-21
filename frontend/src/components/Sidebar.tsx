@@ -22,17 +22,19 @@ function Sidebar() {
   const user = authUser || getStoredUser();
   const role = user?.role?.toLowerCase() || "";
 
-  const navItems = [
-    { name: "Dashboard", path: "/home", icon: LayoutDashboard },
-    {
-      name: "Products",
-      path: getProductsPath(user?.role),
-      icon: Package,
-    },
-    { name: "Orders", path: "/orders", icon: ShoppingCart },
-    { name: "Delivered", path: "/delivered", icon: Truck },
-  ];
-
+const navItems = [
+  { name: "Dashboard", path: "/home", icon: LayoutDashboard },
+  {
+    name: "Products",
+    path: getProductsPath(user?.role),
+    icon: Package,
+  },
+  ...(role === "user"
+    ? [{ name: "Cart", path: "/cart", icon: ShoppingCart }]
+    : []),
+  { name: "Orders", path: "/orders", icon: ShoppingCart },
+  { name: "Delivered", path: "/delivered", icon: Truck },
+];
   const logoutUser = async () => {
     try {
       await logout();
