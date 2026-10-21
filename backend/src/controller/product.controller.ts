@@ -67,16 +67,108 @@ export const getProducts = async (
   res: Response
 ) => {
   try {
-    // All products for the public shop
-    const products = await ProductModel.find()
-      .select("-__v")
+    const { search, category, stock } = req.query;
+
+    // Validate search
+    if (search !== undefined && typeof search !== "string") {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid search filter.",
+      });
+    }
+
+    // Validate category
+    const categoryValue = parseProductCategory(category);
+
+    if (category !== undefined && !categoryValue) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid category filter.",
+      });
+    }
+
+    // Validate stock
+    if (
+      stock !== undefined &&
+      stock !== "all" &&
+      stock !== "in-stock" &&
+      stock !== "low-stock" &&
+      stock !== "out-of-stock"
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid stock filter.",
+      });
+    }
+
+    // Build query filter (public products from all vendors)
+    const searchText =
+      typeof search === "string" ? search.trim() : "";
+
+    const escapedSearch = searchText.replace(
+      /[.*+?^${}()|[\]\\]/g,
+      "\\$&"
+    );
+
+    const filter: QueryFilter<ProductRecord> = {};
+
+    if (escapedSearch) {
+      filter.$or = [
+        { name: { $regex: escapedSearch, $options: "i" } },
+        {
+          description: {
+            $regex: escapedSearch,
+            $options: "i",
+          },
+        },
+      ];
+    }
+
+    if (categoryValue) {
+      filter.category = categoryValue;
+    }
+
+    if (stock === "in-stock") {
+      filter.quantity = { $gt: 5 };
+    } else if (stock === "low-stock") {
+      filter.quantity = { $gt: 0, $lte: 5 };
+    } else if (stock === "out-of-stock") {
+      filter.quantity = 0;
+    }
+
+    // Fetch matching public products
+    const storedProducts = await ProductModel.find(filter)
+      .select("+likedBy -__v")
       .sort({ createdAt: -1 })
       .lean();
+
+    // Calculate likes without exposing likedBy
+    const products = storedProducts.map(
+      ({ likedBy, ...product }) => ({
+        ...product,
+        likesCount: likedBy?.length ?? 0,
+        isLiked: likedBy?.some(
+          (userId) => userId.toString() === req.user?.id
+        ) ?? false,
+      })
+    );
+
+    // Products with likes
+    const likedProducts = products.filter(
+      (product) => product.likesCount > 0
+    );
+
+    // Top 4 products by likes
+    const topProducts = [...likedProducts]
+      .sort((a, b) => b.likesCount - a.likesCount)
+      .slice(0, 4);
 
     return res.status(200).json({
       success: true,
       message: "Products fetched successfully.",
       products,
+      topProducts,
+      likedProducts,
     });
   } catch (error) {
     console.error("Fetch products error:", error);

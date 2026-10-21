@@ -4,6 +4,9 @@ export type AuthUser = {
   role?: "user" | "vendor";
 };
 
+export const getProductsPath = (role?: AuthUser["role"]) =>
+  role === "vendor" ? "/vendor-products" : "/products";
+
 export const isAuthUser = (value: unknown): value is AuthUser => {
   if (typeof value !== "object" || value === null) {
     return false;

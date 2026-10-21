@@ -20,6 +20,7 @@ export type Product = {
   quantity: number;
   category: ProductCategory;
   likesCount?: number;
+  isLiked?: boolean;
 };
 
 export type ProductInput = Omit<Product, "_id" | "likesCount">;
@@ -48,6 +49,11 @@ export type ProductFilters = {
   category?: ProductCategory;
   stock?: "in-stock" | "low-stock" | "out-of-stock";
 };
+
+export const getProducts = (filters: ProductFilters = {}) =>
+  api.get<ProductListResponse>("/api/products", {
+    params: filters,
+  });
 
 export const getVendorProducts = (filters: ProductFilters = {}) =>
   api.get<ProductListResponse>("/api/products/vendor", {

@@ -1,4 +1,3 @@
-
 import {
   LogOut,
   ShoppingBag,
@@ -10,38 +9,44 @@ import {
 
 import { Link, NavLink, useNavigate } from "react-router";
 import { logout } from "../api/api";
-import { getStoredUser } from "../utils/authStorage";
+import { getProductsPath, getStoredUser } from "../utils/authStorage";
 import { useAuth } from "../context/Authcontext";
 
 const PRIMARY_COLOR = "#4F35F5";
 
-const navItems = [
-  { name: "Dashboard", path: "/home", icon: LayoutDashboard },
-  { name: "Products", path: "/products", icon: Package },
-  { name: "Orders", path: "/orders", icon: ShoppingCart },
-  { name: "Delivered", path: "/delivered", icon: Truck },
-];
-
 function Sidebar() {
   const navigate = useNavigate();
-  const user = getStoredUser();
-  const { setUser } = useAuth();
+  const { user: authUser, setUser } = useAuth();
+
+  // Use the latest authenticated user
+  const user = authUser || getStoredUser();
+  const role = user?.role?.toLowerCase() || "";
+
+  const navItems = [
+    { name: "Dashboard", path: "/home", icon: LayoutDashboard },
+    {
+      name: "Products",
+      path: getProductsPath(user?.role),
+      icon: Package,
+    },
+    { name: "Orders", path: "/orders", icon: ShoppingCart },
+    { name: "Delivered", path: "/delivered", icon: Truck },
+  ];
 
   const logoutUser = async () => {
     try {
       await logout();
-      navigate("/", { replace: true });
     } catch (error) {
       console.error("Logout API failed:", error);
     } finally {
       setUser(null);
       localStorage.removeItem("user");
+      navigate("/", { replace: true });
     }
   };
 
   return (
     <aside className="fixed inset-y-0 left-0 z-20 flex w-64 flex-col bg-slate-950 p-5 text-white">
-      {/* Logo */}
       <Link to="/home" className="mb-10 flex items-center gap-3">
         <span
           className="grid size-10 place-items-center rounded-xl text-white"
@@ -55,12 +60,11 @@ function Sidebar() {
             CreateSpace
           </span>
           <span className="text-xs text-slate-400">
-            Seller Dashboard
+            {role === "vendor" ? "Seller Dashboard" : "User Dashboard"}
           </span>
         </span>
       </Link>
 
-      {/* Navigation */}
       <p className="mb-3 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
         Menu
       </p>
@@ -79,9 +83,7 @@ function Sidebar() {
               }`
             }
             style={({ isActive }) =>
-              isActive
-                ? { backgroundColor: PRIMARY_COLOR }
-                : undefined
+              isActive ? { backgroundColor: PRIMARY_COLOR } : undefined
             }
           >
             <Icon size={19} />
@@ -90,7 +92,6 @@ function Sidebar() {
         ))}
       </nav>
 
-      {/* User Profile and Logout */}
       <div className="mt-auto border-t border-slate-800 pt-4">
         <div className="mb-4 flex items-center gap-3 px-2">
           <div
@@ -105,7 +106,7 @@ function Sidebar() {
               {user?.username || "User"}
             </p>
             <p className="text-xs text-slate-400">
-              Seller account
+              {role === "vendor" ? "Vendor account" : "User account"}
             </p>
           </div>
         </div>

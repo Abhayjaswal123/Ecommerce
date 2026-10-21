@@ -6,7 +6,7 @@ import axios from "axios";
 import { ArrowRight, Check, Eye, EyeOff, LockKeyhole, Mail, Store } from "lucide-react";
 import { Link, Navigate, useNavigate } from "react-router";
 import { getAuthUser, userLogin } from "../api/api";
-import { saveUser } from "../utils/authStorage";
+import { getProductsPath, saveUser } from "../utils/authStorage";
 import { useAuth } from "../context/Authcontext";
 
 const loginSchema = z.object({
@@ -41,7 +41,7 @@ function Login() {
       }
       setUser(user);
       saveUser(user);
-      navigate("/home");
+      navigate(getProductsPath(user.role));
     } catch (error) {
       const message = axios.isAxiosError<{ message?: string }>(error)
         ? error.response?.data?.message ?? "Could not sign in. Please try again."
@@ -51,7 +51,7 @@ function Login() {
   };
 
   if (!loading && user) {
-    return <Navigate to="/home" replace />;
+    return <Navigate to={getProductsPath(user.role)} replace />;
   }
 
   return (

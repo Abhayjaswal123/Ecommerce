@@ -5,6 +5,7 @@ import Home from "./pages/home.tsx";
 import Login from "./pages/login.tsx";
 import Register from "./pages/register.tsx";
 import VendorProducts from "./pages/salerProduct.tsx";
+import UserProducts from "./pages/userProductPage.tsx";
 
 function AppLayout() {
   return (
@@ -28,7 +29,12 @@ function App() {
           <Route element={<AppLayout />}>
             <Route path="/home" element={<Home />} />
             <Route path="/dashboard" element={<Home />} />
-            <Route path="/products" element={<VendorProducts />} />
+            <Route element={<ProtectedRoute allowedRoles={["vendor"]} />}>
+              <Route path="/vendor-products" element={<VendorProducts />} />
+            </Route>
+            <Route element={<ProtectedRoute allowedRoles={["user"]} />}>
+              <Route path="/products" element={<UserProducts />} />
+            </Route>
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/register" replace />} />
