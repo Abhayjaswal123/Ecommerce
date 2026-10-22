@@ -3,6 +3,8 @@ import bcrypt from "bcrypt";
 import userModal from "../model/user.model.js";
 import { generateAuthToken } from "../utils/auth.util.js";
 
+const cookieSecure = process.env.NODE_ENV === "production";
+
 export const register = async (req: Request, res: Response) => {
     const { email, username, password, role = "user" } = req.body;
     const start = Date.now();
@@ -35,7 +37,7 @@ export const register = async (req: Request, res: Response) => {
 
     res.cookie("token", token, {
         httpOnly: true,
-        secure: false,
+        secure: cookieSecure,
         sameSite: "lax",
         maxAge: 24 * 60 * 60 * 1000,
         path: "/"
@@ -88,7 +90,7 @@ export const login = async (req: Request, res: Response) => {
 
     res.cookie("token", token, {
         httpOnly: true,
-        secure: false,
+        secure: cookieSecure,
         sameSite: "lax",
         maxAge: 24 * 60 * 60 * 1000,
         path: "/"
@@ -109,7 +111,7 @@ export const login = async (req: Request, res: Response) => {
 export const logout = async (req: Request, res: Response) => {
     res.clearCookie("token", {
         httpOnly: true,
-        secure: false,
+        secure: cookieSecure,
         sameSite: "lax",
         path: "/",
     });

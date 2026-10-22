@@ -3,6 +3,13 @@ import axios from "axios";
 import { Heart, Package, Search, ShoppingCart, Plus, Minus } from "lucide-react";
 
 import {
+  addCartItem,
+  getCart,
+  removeCartItem,
+  updateCartItem,
+  type CartResponse,
+} from "@/api/cart";
+import {
   getProducts,
   likeProduct,
   unlikeProduct,
@@ -57,6 +64,18 @@ const getErrorMessage = (error: unknown) => {
     : "Something went wrong.";
 };
 
+const getCartQuantities = (response: CartResponse) => {
+  const quantities: Record<string, number> = {};
+
+  for (const item of response.cart?.items ?? []) {
+    if (item.product) {
+      quantities[item.product._id] = item.quantity;
+    }
+  }
+
+  return quantities;
+};
+
 export default function UserProducts() {
   const [products, setProducts] = useState<Product[]>([]);
   const [topProducts, setTopProducts] = useState<Product[]>([]);
@@ -72,9 +91,9 @@ export default function UserProducts() {
   const [stockFilter, setStockFilter] =
     useState<"all" | "in-stock" | "out-of-stock">("all");
 
-  // Local cart state. Replace with your shared cart store/API
-  // when integrating the real shopping cart.
   const [cart, setCart] = useState<Record<string, number>>({});
+  const [cartLoaded, setCartLoaded] = useState(false);
+  const [updatingCart, setUpdatingCart] = useState(false);
 
   const cartCount = Object.values(cart).reduce(
     (total, quantity) => total + quantity,
@@ -128,28 +147,67 @@ export default function UserProducts() {
     return () => window.clearTimeout(timer);
   }, [loadProducts, search]);
 
-  const addToCart = (product: Product) => {
-    if (product.quantity <= (cart[product._id] ?? 0)) return;
+  useEffect(() => {
+    let active = true;
 
-    setCart((previous) => ({
-      ...previous,
-      [product._id]: (previous[product._id] ?? 0) + 1,
-    }));
+    const loadCart = async () => {
+      try {
+        const response = await getCart();
+        if (active) setCart(getCartQuantities(response.data));
+      } catch (error) {
+        if (active) setPageError(getErrorMessage(error));
+      } finally {
+        if (active) setCartLoaded(true);
+      }
+    };
+
+    void loadCart();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const addToCart = async (product: Product) => {
+    if (
+      !cartLoaded ||
+      updatingCart ||
+      product.quantity <= (cart[product._id] ?? 0)
+    ) {
+      return;
+    }
+
+    setUpdatingCart(true);
+    setPageError("");
+
+    try {
+      const response = await addCartItem(product._id);
+      setCart(getCartQuantities(response.data));
+    } catch (error) {
+      setPageError(getErrorMessage(error));
+    } finally {
+      setUpdatingCart(false);
+    }
   };
 
-  const removeFromCart = (productId: string) => {
-    setCart((previous) => {
-      const next = { ...previous };
-      const quantity = next[productId] ?? 0;
+  const removeFromCart = async (productId: string) => {
+    if (!cartLoaded || updatingCart) return;
 
-      if (quantity <= 1) {
-        delete next[productId];
-      } else {
-        next[productId] = quantity - 1;
-      }
+    setUpdatingCart(true);
+    setPageError("");
 
-      return next;
-    });
+    try {
+      const quantity = cart[productId] ?? 0;
+      const response =
+        quantity <= 1
+          ? await removeCartItem(productId)
+          : await updateCartItem(productId, quantity - 1);
+      setCart(getCartQuantities(response.data));
+    } catch (error) {
+      setPageError(getErrorMessage(error));
+    } finally {
+      setUpdatingCart(false);
+    }
   };
 
   const toggleLike = async (product: Product) => {
@@ -304,6 +362,7 @@ export default function UserProducts() {
             products={topProducts}
             loading={loading}
             cart={cart}
+            cartReady={cartLoaded && !updatingCart}
             onAddToCart={addToCart}
             onRemoveFromCart={removeFromCart}
             likingProducts={likingProducts}
@@ -316,6 +375,7 @@ export default function UserProducts() {
             products={likedProducts}
             loading={loading}
             cart={cart}
+            cartReady={cartLoaded && !updatingCart}
             onAddToCart={addToCart}
             onRemoveFromCart={removeFromCart}
             likingProducts={likingProducts}
@@ -328,6 +388,7 @@ export default function UserProducts() {
             products={products}
             loading={loading}
             cart={cart}
+            cartReady={cartLoaded && !updatingCart}
             onAddToCart={addToCart}
             onRemoveFromCart={removeFromCart}
             likingProducts={likingProducts}
@@ -345,6 +406,7 @@ function ProductSection({
   products,
   loading,
   cart,
+  cartReady,
   onAddToCart,
   onRemoveFromCart,
   likingProducts,
@@ -355,6 +417,7 @@ function ProductSection({
   products: Product[];
   loading: boolean;
   cart: Record<string, number>;
+  cartReady: boolean;
   onAddToCart: (product: Product) => void;
   onRemoveFromCart: (productId: string) => void;
   likingProducts: Record<string, boolean>;
@@ -466,7 +529,8 @@ function ProductSection({
                         type="button"
                         variant="outline"
                         aria-label={`Remove one ${product.name} from cart`}
-                        onClick={() => onRemoveFromCart(product._id)}
+                        disabled={!cartReady}
+                        onClick={() => void onRemoveFromCart(product._id)}
                         className="border-white/10 bg-transparent text-white hover:bg-white/10"
                       >
                         <Minus className="size-4" />
@@ -480,8 +544,8 @@ function ProductSection({
                         type="button"
                         variant="outline"
                         aria-label={`Add one ${product.name} to cart`}
-                        disabled={cartLimitReached}
-                        onClick={() => onAddToCart(product)}
+                        disabled={!cartReady || cartLimitReached}
+                        onClick={() => void onAddToCart(product)}
                         className="border-white/10 bg-transparent text-white hover:bg-white/10"
                       >
                         <Plus className="size-4" />
@@ -490,12 +554,16 @@ function ProductSection({
                   ) : (
                     <Button
                       type="button"
-                      disabled={outOfStock}
-                      onClick={() => onAddToCart(product)}
+                      disabled={!cartReady || outOfStock}
+                      onClick={() => void onAddToCart(product)}
                       className="h-11 w-full gap-2 bg-[#a5e0d9] font-semibold text-[#171821] hover:bg-[#8bd5cc] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <ShoppingCart className="size-4" />
-                      {outOfStock ? "Out of Stock" : "Add to Cart"}
+                      {outOfStock
+                        ? "Out of Stock"
+                        : cartReady
+                          ? "Add to Cart"
+                          : "Loading Cart..."}
                     </Button>
                   )}
                 </CardContent>

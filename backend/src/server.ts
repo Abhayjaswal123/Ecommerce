@@ -4,6 +4,7 @@ import connectDb from "./config/db.js";
 import indexRoutes from "./index.js";
 import authRoutes from "./routes/login.route.js"
 import productRoutes from "./routes/product.route.js";
+import cartRoutes from "./routes/cart.route.js";
 import cors from "cors";
 const app = express();
 const PORT = 5000;
@@ -24,6 +25,7 @@ app.use(
 app.use("/", indexRoutes);
 app.use("/api", authRoutes);
 app.use("/api/products", productRoutes);
+app.use("/api/cart", cartRoutes);
 
 // Start server
 app.listen(PORT, () => {
