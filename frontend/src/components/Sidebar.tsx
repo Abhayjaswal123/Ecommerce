@@ -23,7 +23,9 @@ function Sidebar() {
   const role = user?.role?.toLowerCase() || "";
 
 const navItems = [
-  { name: "Dashboard", path: "/home", icon: LayoutDashboard },
+  ...(role === "vendor"
+    ? [{ name: "Dashboard", path: "/home", icon: LayoutDashboard }]
+    : []),
   {
     name: "Products",
     path: getProductsPath(user?.role),
@@ -49,7 +51,7 @@ const navItems = [
 
   return (
     <aside className="fixed inset-y-0 left-0 z-20 flex w-64 flex-col bg-slate-950 p-5 text-white">
-      <Link to="/home" className="mb-10 flex items-center gap-3">
+      <Link to={getProductsPath(user?.role)} className="mb-10 flex items-center gap-3">
         <span
           className="grid size-10 place-items-center rounded-xl text-white"
           style={{ backgroundColor: PRIMARY_COLOR }}

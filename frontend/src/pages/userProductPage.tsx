@@ -1,6 +1,23 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import { Heart, Package, Search, ShoppingCart, Plus, Minus } from "lucide-react";
+import {
+  Heart,
+  ArrowRight,
+  ChevronLeft,
+  ChevronRight,
+  LoaderCircle,
+  Package,
+  Search,
+  ShoppingCart,
+  Plus,
+  Minus,
+} from "lucide-react";
+
+import {
+  Link,
+  Navigate,
+  useParams,
+} from "react-router";
 
 import {
   addCartItem,
@@ -47,6 +64,24 @@ const categoryOptions: Array<ProductCategory | "All"> = [
   ...categories,
 ];
 
+const productSections = {
+  top: {
+    title: "Top Products",
+    description: "Explore popular products.",
+  },
+  liked: {
+    title: "Liked Products",
+    description: "Products you and other customers love.",
+  },
+  all: {
+    title: "All Products",
+    description: "Browse our complete collection.",
+  },
+} as const;
+
+const PAGE_SIZE = 10;
+const SECTION_PREVIEW_SIZE = 4;
+
 const currency = (amount: number) =>
   new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -77,6 +112,11 @@ const getCartQuantities = (response: CartResponse) => {
 };
 
 export default function UserProducts() {
+  const { section } = useParams<{ section?: string }>();
+  const activeSection =
+    section === "top" || section === "liked" || section === "all"
+      ? section
+      : null;
   const [products, setProducts] = useState<Product[]>([]);
   const [topProducts, setTopProducts] = useState<Product[]>([]);
   const [likedProducts, setLikedProducts] = useState<Product[]>([]);
@@ -94,6 +134,11 @@ export default function UserProducts() {
   const [cart, setCart] = useState<Record<string, number>>({});
   const [cartLoaded, setCartLoaded] = useState(false);
   const [updatingCart, setUpdatingCart] = useState(false);
+  const [updatingCartAction, setUpdatingCartAction] = useState<{
+    key: string;
+    type: "add" | "remove";
+  } | null>(null);
+  const [pagination, setPagination] = useState({ key: "", page: 1 });
 
   const cartCount = Object.values(cart).reduce(
     (total, quantity) => total + quantity,
@@ -111,6 +156,28 @@ export default function UserProducts() {
         : {}),
     }),
     [search, categoryFilter, stockFilter],
+  );
+
+  const sectionProducts =
+    activeSection === "top"
+      ? [...topProducts].sort(
+          (first, second) => (second.likesCount ?? 0) - (first.likesCount ?? 0),
+        )
+      : activeSection === "liked"
+        ? [...likedProducts].sort(
+            (first, second) =>
+              (second.likesCount ?? 0) - (first.likesCount ?? 0),
+          )
+        : products;
+  const totalPages = Math.max(1, Math.ceil(sectionProducts.length / PAGE_SIZE));
+  const paginationKey = `${activeSection ?? "overview"}:${JSON.stringify(filters)}`;
+  const currentPage =
+    pagination.key === paginationKey
+      ? Math.min(pagination.page, totalPages)
+      : 1;
+  const paginatedProducts = sectionProducts.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE,
   );
 
   const loadProducts = useCallback(async () => {
@@ -168,7 +235,7 @@ export default function UserProducts() {
     };
   }, []);
 
-  const addToCart = async (product: Product) => {
+  const addToCart = async (product: Product, key: string) => {
     if (
       !cartLoaded ||
       updatingCart ||
@@ -178,6 +245,7 @@ export default function UserProducts() {
     }
 
     setUpdatingCart(true);
+    setUpdatingCartAction({ key, type: "add" });
     setPageError("");
 
     try {
@@ -187,13 +255,15 @@ export default function UserProducts() {
       setPageError(getErrorMessage(error));
     } finally {
       setUpdatingCart(false);
+      setUpdatingCartAction(null);
     }
   };
 
-  const removeFromCart = async (productId: string) => {
+  const removeFromCart = async (productId: string, key: string) => {
     if (!cartLoaded || updatingCart) return;
 
     setUpdatingCart(true);
+    setUpdatingCartAction({ key, type: "remove" });
     setPageError("");
 
     try {
@@ -207,6 +277,7 @@ export default function UserProducts() {
       setPageError(getErrorMessage(error));
     } finally {
       setUpdatingCart(false);
+      setUpdatingCartAction(null);
     }
   };
 
@@ -236,8 +307,7 @@ export default function UserProducts() {
       setTopProducts(
         updatedProducts
           .filter((item) => (item.likesCount ?? 0) > 0)
-          .sort((first, second) => (second.likesCount ?? 0) - (first.likesCount ?? 0))
-          .slice(0, 4),
+          .sort((first, second) => (second.likesCount ?? 0) - (first.likesCount ?? 0)),
       );
     } catch (error) {
       setPageError(getErrorMessage(error));
@@ -256,6 +326,10 @@ export default function UserProducts() {
       0,
     );
 
+  if (section && !activeSection) {
+    return <Navigate to="/products" replace />;
+  }
+
   return (
     <div className="min-h-screen bg-[#171821] p-4 text-slate-100 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-[1500px] space-y-8">
@@ -264,10 +338,12 @@ export default function UserProducts() {
         <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
-              Shop Products
+              {activeSection ? productSections[activeSection].title : "Shop Products"}
             </h1>
             <p className="mt-2 text-sm text-slate-400 sm:text-base">
-              Discover products and add your favorites to your cart.
+              {activeSection
+                ? productSections[activeSection].description
+                : "Discover products and add your favorites to your cart."}
             </p>
           </div>
 
@@ -294,6 +370,72 @@ export default function UserProducts() {
           </div>
         )}
 
+        {activeSection ? (
+          <>
+            <Link
+              to="/products"
+              className="inline-flex items-center rounded-lg border border-white/10 bg-[#20212b] px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10"
+            >
+              Back to products
+            </Link>
+            <ProductSection
+              title={productSections[activeSection].title}
+              description={productSections[activeSection].description}
+              products={paginatedProducts}
+              loading={loading}
+              cart={cart}
+              cartReady={cartLoaded}
+              cartUpdating={updatingCart}
+              updatingCartAction={updatingCartAction}
+              onAddToCart={addToCart}
+              onRemoveFromCart={removeFromCart}
+              likingProducts={likingProducts}
+              onToggleLike={toggleLike}
+            />
+            {!loading && sectionProducts.length > 0 && (
+              <nav
+                aria-label="Product pagination"
+                className="flex flex-col items-center justify-between gap-3 border-t border-white/10 pt-5 sm:flex-row"
+              >
+                <p className="text-sm text-slate-400" aria-live="polite">
+                  Showing {(currentPage - 1) * PAGE_SIZE + 1}–
+                  {Math.min(currentPage * PAGE_SIZE, sectionProducts.length)} of{" "}
+                  {sectionProducts.length}
+                </p>
+                <div className="flex items-center gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={currentPage === 1}
+                    onClick={() =>
+                      setPagination({ key: paginationKey, page: currentPage - 1 })
+                    }
+                    className="border-white/10 bg-[#20212b] text-white hover:bg-white/10"
+                  >
+                    <ChevronLeft className="size-4" />
+                    Previous
+                  </Button>
+                  <span className="text-sm text-slate-300">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={currentPage === totalPages}
+                    onClick={() =>
+                      setPagination({ key: paginationKey, page: currentPage + 1 })
+                    }
+                    className="border-white/10 bg-[#20212b] text-white hover:bg-white/10"
+                  >
+                    Next
+                    <ChevronRight className="size-4" />
+                  </Button>
+                </div>
+              </nav>
+            )}
+          </>
+        ) : (
+          <>
         {/* Search and stock filter */}
         <section className="flex flex-col gap-3 sm:flex-row">
           <div className="relative w-full sm:max-w-md">
@@ -359,10 +501,13 @@ export default function UserProducts() {
           <ProductSection
             title="Top Products"
             description="Explore popular products."
-            products={topProducts}
+            products={topProducts.slice(0, SECTION_PREVIEW_SIZE)}
             loading={loading}
             cart={cart}
-            cartReady={cartLoaded && !updatingCart}
+            cartReady={cartLoaded}
+            cartUpdating={updatingCart}
+            updatingCartAction={updatingCartAction}
+            viewAllHref="/products/top"
             onAddToCart={addToCart}
             onRemoveFromCart={removeFromCart}
             likingProducts={likingProducts}
@@ -372,10 +517,13 @@ export default function UserProducts() {
           <ProductSection
             title="Liked Products"
             description="Products you and other customers love."
-            products={likedProducts}
+            products={likedProducts.slice(0, SECTION_PREVIEW_SIZE)}
             loading={loading}
             cart={cart}
-            cartReady={cartLoaded && !updatingCart}
+            cartReady={cartLoaded}
+            cartUpdating={updatingCart}
+            updatingCartAction={updatingCartAction}
+            viewAllHref="/products/liked"
             onAddToCart={addToCart}
             onRemoveFromCart={removeFromCart}
             likingProducts={likingProducts}
@@ -385,16 +533,21 @@ export default function UserProducts() {
           <ProductSection
             title="All Products"
             description="Browse our complete collection."
-            products={products}
+            products={products.slice(0, SECTION_PREVIEW_SIZE)}
             loading={loading}
             cart={cart}
-            cartReady={cartLoaded && !updatingCart}
+            cartReady={cartLoaded}
+            cartUpdating={updatingCart}
+            updatingCartAction={updatingCartAction}
+            viewAllHref="/products/all"
             onAddToCart={addToCart}
             onRemoveFromCart={removeFromCart}
             likingProducts={likingProducts}
             onToggleLike={toggleLike}
           />
         </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -407,6 +560,9 @@ function ProductSection({
   loading,
   cart,
   cartReady,
+  cartUpdating,
+  updatingCartAction,
+  viewAllHref,
   onAddToCart,
   onRemoveFromCart,
   likingProducts,
@@ -418,16 +574,32 @@ function ProductSection({
   loading: boolean;
   cart: Record<string, number>;
   cartReady: boolean;
-  onAddToCart: (product: Product) => void;
-  onRemoveFromCart: (productId: string) => void;
+  cartUpdating: boolean;
+  updatingCartAction: { key: string; type: "add" | "remove" } | null;
+  viewAllHref?: string;
+  onAddToCart: (product: Product, key: string) => void;
+  onRemoveFromCart: (productId: string, key: string) => void;
   likingProducts: Record<string, boolean>;
   onToggleLike: (product: Product) => void;
 }) {
   return (
     <section className="space-y-5">
       <div>
-        <h2 className="text-xl font-bold">{title}</h2>
-        <p className="mt-1 text-sm text-slate-400">{description}</p>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-bold">{title}</h2>
+            <p className="mt-1 text-sm text-slate-400">{description}</p>
+          </div>
+          {viewAllHref && (
+            <Link
+              to={viewAllHref}
+              className="inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-[#a5e0d9] transition hover:bg-white/5 hover:text-white"
+            >
+              See all
+              <ArrowRight className="size-4" />
+            </Link>
+          )}
+        </div>
       </div>
 
       {loading ? (
@@ -445,6 +617,13 @@ function ProductSection({
             const inCart = cart[product._id] ?? 0;
             const outOfStock = product.quantity <= 0;
             const cartLimitReached = inCart >= product.quantity;
+            const cartActionKey = `${title}:${product._id}`;
+            const isAdding =
+              updatingCartAction?.key === cartActionKey &&
+              updatingCartAction.type === "add";
+            const isRemoving =
+              updatingCartAction?.key === cartActionKey &&
+              updatingCartAction.type === "remove";
 
             return (
               <Card
@@ -529,11 +708,17 @@ function ProductSection({
                         type="button"
                         variant="outline"
                         aria-label={`Remove one ${product.name} from cart`}
-                        disabled={!cartReady}
-                        onClick={() => void onRemoveFromCart(product._id)}
+                        disabled={!cartReady || cartUpdating}
+                        onClick={() =>
+                          void onRemoveFromCart(product._id, cartActionKey)
+                        }
                         className="border-white/10 bg-transparent text-white hover:bg-white/10"
                       >
-                        <Minus className="size-4" />
+                        {isRemoving ? (
+                          <LoaderCircle className="size-4 animate-spin" />
+                        ) : (
+                          <Minus className="size-4" />
+                        )}
                       </Button>
 
                       <span className="flex-1 text-center text-sm font-semibold">
@@ -544,22 +729,32 @@ function ProductSection({
                         type="button"
                         variant="outline"
                         aria-label={`Add one ${product.name} to cart`}
-                        disabled={!cartReady || cartLimitReached}
-                        onClick={() => void onAddToCart(product)}
+                        disabled={!cartReady || cartUpdating || cartLimitReached}
+                        onClick={() => void onAddToCart(product, cartActionKey)}
                         className="border-white/10 bg-transparent text-white hover:bg-white/10"
                       >
-                        <Plus className="size-4" />
+                        {isAdding ? (
+                          <LoaderCircle className="size-4 animate-spin" />
+                        ) : (
+                          <Plus className="size-4" />
+                        )}
                       </Button>
                     </div>
                   ) : (
                     <Button
                       type="button"
-                      disabled={!cartReady || outOfStock}
-                      onClick={() => void onAddToCart(product)}
+                      disabled={!cartReady || cartUpdating || outOfStock}
+                      onClick={() => void onAddToCart(product, cartActionKey)}
                       className="h-11 w-full gap-2 bg-[#a5e0d9] font-semibold text-[#171821] hover:bg-[#8bd5cc] disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      <ShoppingCart className="size-4" />
-                      {outOfStock
+                      {isAdding ? (
+                        <LoaderCircle className="size-4 animate-spin" />
+                      ) : (
+                        <ShoppingCart className="size-4" />
+                      )}
+                      {isAdding
+                        ? "Adding..."
+                        : outOfStock
                         ? "Out of Stock"
                         : cartReady
                           ? "Add to Cart"

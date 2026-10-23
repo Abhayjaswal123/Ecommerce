@@ -158,10 +158,9 @@ export const getProducts = async (
       (product) => product.likesCount > 0
     );
 
-    // Top 4 products by likes
+    // Top products by likes
     const topProducts = [...likedProducts]
-      .sort((a, b) => b.likesCount - a.likesCount)
-      .slice(0, 4);
+      .sort((a, b) => b.likesCount - a.likesCount);
 
     return res.status(200).json({
       success: true,
