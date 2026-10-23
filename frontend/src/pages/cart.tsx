@@ -2,13 +2,22 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import {
   ArrowLeft,
+  CreditCard,
   Minus,
   Package,
   Plus,
   ShoppingCart,
   Trash2,
+  Truck,
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   getCart,
   removeCartItem,
@@ -30,6 +39,11 @@ const getErrorMessage = (error: unknown) => {
 };
 
 export default function Cart() {
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<"online" | "cod" | null>(
+    null,
+  );
+  const [checkoutNotice, setCheckoutNotice] = useState("");
   const [cartItems, setCartItems] = useState<CartLine[]>([]);
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState("");
@@ -111,6 +125,7 @@ export default function Cart() {
   const total = subtotal + shipping;
 
   return (
+    <>
     <div className="min-h-screen bg-[#171821] p-4 text-white sm:p-6 lg:p-8">
       <div className="mx-auto max-w-6xl">
         <Link
@@ -282,19 +297,121 @@ export default function Cart() {
 
               <button
                 type="button"
-                disabled
-                title="Checkout has not been set up yet."
-                className="mt-6 w-full cursor-not-allowed rounded-xl bg-[#A5E2DB]/50 px-4 py-3 font-semibold text-[#171821] opacity-70"
+                onClick={() => {
+                  setPaymentMethod(null);
+                  setCheckoutNotice("");
+                  setCheckoutOpen(true);
+                }}
+                className="mt-6 w-full rounded-xl bg-[#A5E2DB] px-4 py-3 font-semibold text-[#171821] transition hover:bg-[#8BD4CB]"
               >
-                Checkout unavailable
+                Checkout
               </button>
-              <p className="mt-4 text-center text-xs text-[#91B5D9]/70">
-                Checkout is not available yet. Your cart is saved to your account.
-              </p>
             </aside>
           </div>
         )}
       </div>
     </div>
+    <Dialog open={checkoutOpen} onOpenChange={setCheckoutOpen}>
+      <DialogContent className="border-[#30313D] bg-[#20212B] text-white sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="text-xl text-white">
+            Choose a payment method
+          </DialogTitle>
+          <DialogDescription className="text-[#91B5D9]">
+            Select how you would like to pay for your {itemCount}{" "}
+            {itemCount === 1 ? "item" : "items"}.
+          </DialogDescription>
+        </DialogHeader>
+
+        <fieldset className="mt-5 space-y-3">
+          <legend className="sr-only">Payment method</legend>
+          <label
+            className={`flex cursor-pointer items-center gap-4 rounded-xl border p-4 transition ${
+              paymentMethod === "online"
+                ? "border-[#A5E2DB] bg-[#A5E2DB]/10"
+                : "border-[#30313D] hover:border-[#A5E2DB]/50"
+            }`}
+          >
+            <input
+              type="radio"
+              name="payment-method"
+              value="online"
+              checked={paymentMethod === "online"}
+              onChange={() => {
+                setPaymentMethod("online");
+                setCheckoutNotice("");
+              }}
+              className="accent-[#A5E2DB]"
+            />
+            <CreditCard className="size-5 shrink-0 text-[#A5E2DB]" />
+            <span className="flex-1">
+              <span className="block font-semibold">Pay now</span>
+              <span className="mt-1 block text-sm text-[#91B5D9]">
+                Pay online using a payment method.
+              </span>
+            </span>
+          </label>
+
+          <label
+            className={`flex cursor-pointer items-center gap-4 rounded-xl border p-4 transition ${
+              paymentMethod === "cod"
+                ? "border-[#A5E2DB] bg-[#A5E2DB]/10"
+                : "border-[#30313D] hover:border-[#A5E2DB]/50"
+            }`}
+          >
+            <input
+              type="radio"
+              name="payment-method"
+              value="cod"
+              checked={paymentMethod === "cod"}
+              onChange={() => {
+                setPaymentMethod("cod");
+                setCheckoutNotice("");
+              }}
+              className="accent-[#A5E2DB]"
+            />
+            <Truck className="size-5 shrink-0 text-[#A5E2DB]" />
+            <span className="flex-1">
+              <span className="block font-semibold">Cash on delivery</span>
+              <span className="mt-1 block text-sm text-[#91B5D9]">
+                Pay when your order arrives.
+              </span>
+            </span>
+          </label>
+        </fieldset>
+
+        {checkoutNotice && (
+          <p
+            role="status"
+            className="mt-4 rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-sm text-amber-200"
+          >
+            {checkoutNotice}
+          </p>
+        )}
+
+        <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={() => setCheckoutOpen(false)}
+            className="rounded-xl border border-[#30313D] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/5"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={!paymentMethod}
+            onClick={() =>
+              setCheckoutNotice(
+                "Checkout is not configured yet. No payment was taken and your cart is unchanged.",
+              )
+            }
+            className="rounded-xl bg-[#A5E2DB] px-4 py-2.5 text-sm font-semibold text-[#171821] transition hover:bg-[#8BD4CB] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Continue
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
