@@ -656,7 +656,7 @@ function ProductSection({
                   </span>
                   <Button
                     type="button"
-                    variant="outline"
+                    
                     aria-label={
                       product.isLiked
                         ? `Unlike ${product.name}`
@@ -665,7 +665,7 @@ function ProductSection({
                     aria-pressed={product.isLiked ?? false}
                     disabled={likingProducts[product._id]}
                     onClick={() => onToggleLike(product)}
-                    className="absolute left-3 top-3 gap-2 border-white/20 bg-[#171821]/80 text-white hover:bg-[#171821]"
+                    className="absolute left-3 top-3 gap- text-white cursor-pointer"
                   >
                     <Heart
                       className={`size-4 ${
