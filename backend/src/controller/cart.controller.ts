@@ -23,7 +23,7 @@ export const getCart = async (req: Request, res: Response) => {
             });
         }
 
-        const cart = await CartModel.findOne({ user: userId });
+        const cart = await CartModel.findOne({ user: userId }).read("secondaryPreferred");
 
         if (!cart) {
             return res.status(200).json({
@@ -32,7 +32,7 @@ export const getCart = async (req: Request, res: Response) => {
             });
         }
 
-        const populatedCart = await populateCart(CartModel.findById(cart._id));
+        const populatedCart = await populateCart(CartModel.findById(cart._id)).read("secondaryPreferred");
 
         return res.status(200).json({
             message: "Cart retrieved successfully",
