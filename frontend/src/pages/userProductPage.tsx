@@ -180,9 +180,11 @@ export default function UserProducts() {
     currentPage * PAGE_SIZE,
   );
 
-  const loadProducts = useCallback(async () => {
-    setLoading(true);
-    setPageError("");
+  const loadProducts = useCallback(async (silent = false) => {
+    if (!silent) {
+      setLoading(true);
+      setPageError("");
+    }
 
     try { 
       const response = await getProducts(filters);
@@ -201,7 +203,7 @@ export default function UserProducts() {
     } catch (error) {
       setPageError(getErrorMessage(error));
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [filters]);
 
@@ -213,6 +215,11 @@ export default function UserProducts() {
 
     return () => window.clearTimeout(timer);
   }, [loadProducts, search]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => void loadProducts(true), 10000);
+    return () => window.clearInterval(timer);
+  }, [loadProducts]);
 
   useEffect(() => {
     let active = true;
@@ -722,7 +729,9 @@ function ProductSection({
                       </Button>
 
                       <span className="flex-1 text-center text-sm font-semibold">
-                        {inCart} in cart
+                        {outOfStock
+                          ? `Out of Stock · ${inCart} in cart`
+                          : `${inCart} in cart`}
                       </span>
 
                       <Button

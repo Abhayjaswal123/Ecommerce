@@ -32,10 +32,17 @@ const navItems = [
     icon: Package,
   },
   ...(role === "user"
-    ? [{ name: "Cart", path: "/cart", icon: ShoppingCart }]
+    ? [
+        { name: "Cart", path: "/cart", icon: ShoppingCart },
+        { name: "My Orders", path: "/orders", icon: Truck },
+      ]
     : []),
-  { name: "Orders", path: "/orders", icon: ShoppingCart },
-  { name: "Delivered", path: "/delivered", icon: Truck },
+  ...(role === "vendor"
+    ? [
+        { name: "Orders", path: "/orders", icon: ShoppingCart },
+        { name: "Delivered", path: "/delivered", icon: Truck },
+      ]
+    : []),
 ];
   const logoutUser = async () => {
     try {

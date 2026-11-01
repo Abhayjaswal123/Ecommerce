@@ -7,6 +7,7 @@ import Register from "./pages/register.tsx";
 import VendorProducts from "./pages/salerProduct.tsx";
 import UserProducts from "./pages/userProductPage.tsx";
 import Cart from "./pages/cart.tsx";
+import Orders from "./pages/orders.tsx";
 
 function AppLayout() {
   return (
@@ -39,8 +40,12 @@ function App() {
               <Route path="/products" element={<UserProducts />} />
               <Route path="/products/:section" element={<UserProducts />} />
             </Route>
+            <Route path="/orders" element={<Orders />} />
             <Route element={<ProtectedRoute allowedRoles={["user"]} />}>
               <Route path="/cart" element={<Cart />} />
+            </Route>
+            <Route element={<ProtectedRoute allowedRoles={["vendor"]} />}>
+              <Route path="/delivered" element={<Orders />} />
             </Route>
           </Route>
         </Route>

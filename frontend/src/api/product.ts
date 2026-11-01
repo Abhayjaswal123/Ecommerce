@@ -19,6 +19,7 @@ export type Product = {
   price: number;
   quantity: number;
   category: ProductCategory;
+  vendor?: string | { _id: string; username?: string };
   likesCount?: number;
   isLiked?: boolean;
 };

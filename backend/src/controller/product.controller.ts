@@ -138,6 +138,7 @@ export const getProducts = async (
 
     // Fetch matching public products
     const storedProducts = await ProductModel.find(filter)
+      .read("primary")
       .select("+likedBy -__v")
       .sort({ createdAt: -1 })
       .lean();
@@ -244,6 +245,7 @@ export const getVendorProducts = async (
     }
 
     const storedProducts = await ProductModel.find(filter)
+      .read("primary")
       .select("+likedBy")
       .sort({ createdAt: -1 })
       .lean();

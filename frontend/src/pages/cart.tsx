@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import {
   ArrowLeft,
-  CreditCard,
   Minus,
   Package,
   Plus,
@@ -10,7 +9,7 @@ import {
   Trash2,
   Truck,
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Dialog,
   DialogContent,
@@ -26,6 +25,7 @@ import {
   type CartResponse,
 } from "@/api/cart";
 import type { Product } from "@/api/product";
+import { createOrder } from "@/api/orders";
 
 const formatPrice = (price: number) =>
   `₹${price.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
@@ -39,11 +39,11 @@ const getErrorMessage = (error: unknown) => {
 };
 
 export default function Cart() {
+  const navigate = useNavigate();
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<"online" | "cod" | null>(
-    null,
-  );
+  const [paymentMethod, setPaymentMethod] = useState<"cod" | null>(null);
   const [checkoutNotice, setCheckoutNotice] = useState("");
+  const [placingOrder, setPlacingOrder] = useState(false);
   const [cartItems, setCartItems] = useState<CartLine[]>([]);
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState("");
@@ -121,8 +121,38 @@ export default function Cart() {
     (total, item) => total + item.quantity,
     0,
   );
-  const shipping = subtotal === 0 || subtotal >= 1500 ? 0 : 80;
+  const vendorSubtotals = new Map<string, number>();
+  for (const item of availableItems) {
+    const vendor = item.product.vendor;
+    const vendorId =
+      typeof vendor === "object" ? vendor._id : vendor ?? item.product._id;
+    vendorSubtotals.set(
+      vendorId,
+      (vendorSubtotals.get(vendorId) ?? 0) +
+        item.product.price * item.quantity,
+    );
+  }
+  const shipping = [...vendorSubtotals.values()].reduce(
+    (total, vendorSubtotal) =>
+      total + (vendorSubtotal === 0 || vendorSubtotal >= 1500 ? 0 : 80),
+    0,
+  );
   const total = subtotal + shipping;
+  const placeOrder = async () => {
+    if (paymentMethod !== "cod" || placingOrder) return;
+
+    setPlacingOrder(true);
+    setCheckoutNotice("");
+    try {
+      await createOrder("COD");
+      setCheckoutOpen(false);
+      navigate("/orders", { replace: true });
+    } catch (error) {
+      setCheckoutNotice(getErrorMessage(error));
+    } finally {
+      setPlacingOrder(false);
+    }
+  };
 
   return (
     <>
@@ -327,33 +357,6 @@ export default function Cart() {
           <legend className="sr-only">Payment method</legend>
           <label
             className={`flex cursor-pointer items-center gap-4 rounded-xl border p-4 transition ${
-              paymentMethod === "online"
-                ? "border-[#A5E2DB] bg-[#A5E2DB]/10"
-                : "border-[#30313D] hover:border-[#A5E2DB]/50"
-            }`}
-          >
-            <input
-              type="radio"
-              name="payment-method"
-              value="online"
-              checked={paymentMethod === "online"}
-              onChange={() => {
-                setPaymentMethod("online");
-                setCheckoutNotice("");
-              }}
-              className="accent-[#A5E2DB]"
-            />
-            <CreditCard className="size-5 shrink-0 text-[#A5E2DB]" />
-            <span className="flex-1">
-              <span className="block font-semibold">Pay now</span>
-              <span className="mt-1 block text-sm text-[#91B5D9]">
-                Pay online using a payment method.
-              </span>
-            </span>
-          </label>
-
-          <label
-            className={`flex cursor-pointer items-center gap-4 rounded-xl border p-4 transition ${
               paymentMethod === "cod"
                 ? "border-[#A5E2DB] bg-[#A5E2DB]/10"
                 : "border-[#30313D] hover:border-[#A5E2DB]/50"
@@ -399,15 +402,11 @@ export default function Cart() {
           </button>
           <button
             type="button"
-            disabled={!paymentMethod}
-            onClick={() =>
-              setCheckoutNotice(
-                "Checkout is not configured yet. No payment was taken and your cart is unchanged.",
-              )
-            }
+            disabled={!paymentMethod || placingOrder}
+            onClick={() => void placeOrder()}
             className="rounded-xl bg-[#A5E2DB] px-4 py-2.5 text-sm font-semibold text-[#171821] transition hover:bg-[#8BD4CB] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Continue
+            {placingOrder ? "Placing order..." : "Place Order"}
           </button>
         </div>
       </DialogContent>

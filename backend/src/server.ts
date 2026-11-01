@@ -5,6 +5,7 @@ import indexRoutes from "./index.js";
 import authRoutes from "./routes/login.route.js"
 import productRoutes from "./routes/product.route.js";
 import cartRoutes from "./routes/cart.route.js";
+import orderRoutes from "./routes/order.route.js";
 import cors from "cors";
 
 import { connectRedis } from "./config/redis.js";
@@ -29,6 +30,7 @@ app.use("/", indexRoutes);
 app.use("/api", authRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/cart", cartRoutes);
+app.use("/api/orders", orderRoutes);
 
 // Start server
 app.listen(PORT, () => {
