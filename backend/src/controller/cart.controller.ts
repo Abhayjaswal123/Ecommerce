@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import mongoose from "mongoose";
 import CartModel from "../model/cart.model.js";
 import ProductModel from "../model/product.model.js";
+import { getCachedCart, setCachedCart, invalidateCartCache } from "../utils/cartCache.js";
 
 const populateCart = (query: ReturnType<typeof CartModel.findById>) =>
     query.populate({
@@ -23,16 +24,36 @@ export const getCart = async (req: Request, res: Response) => {
             });
         }
 
-        const cart = await CartModel.findOne({ user: userId }).read("secondaryPreferred");
+        // 1. Check Redis cache first
+        const cachedCart = await getCachedCart(userId);
 
-        if (!cart) {
+        if (cachedCart) {
             return res.status(200).json({
                 message: "Cart retrieved successfully",
-                cart: { items: [] },
+                cart: cachedCart,
+                source: "redis",
+            });
+        }
+
+        const cart = await CartModel.findOne({ user: userId }).read("secondaryPreferred");
+
+         // 3. If cart doesn't exist, cache empty cart
+        if (!cart) {
+            const emptyCart = { items: [] };
+
+            await setCachedCart(userId, emptyCart);
+
+            return res.status(200).json({
+                message: "Cart retrieved successfully",
+                cart: emptyCart,
+                source: "mongodb",
             });
         }
 
         const populatedCart = await populateCart(CartModel.findById(cart._id)).read("secondaryPreferred");
+
+        // 5. Save populated cart in Redis
+        await setCachedCart(userId, populatedCart);
 
         return res.status(200).json({
             message: "Cart retrieved successfully",
@@ -119,6 +140,8 @@ export const addToCart = async (req: Request, res: Response) => {
         }
 
         await cart.save();
+        // Invalidate Redis after successful MongoDB update
+        await invalidateCartCache(userId);
 
         const updatedCart = await CartModel.findById(cart._id)
             .populate({
@@ -203,6 +226,9 @@ export const updateCartItem = async (req: Request, res: Response) => {
         item.quantity = quantity;
         await cart.save();
 
+        // Invalidate Redis cache
+await invalidateCartCache(userId);
+
         const updatedCart = await populateCart(CartModel.findById(cart._id));
 
         return res.status(200).json({
@@ -263,6 +289,9 @@ export const removeFromCart = async (
                 message: "Cart not found",
             });
         }
+
+        // Invalidate Redis cache after successful removal
+            await invalidateCartCache(userId);
 
         return res.status(200).json({
             message: "Product removed from cart successfully",

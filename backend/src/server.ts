@@ -6,10 +6,13 @@ import authRoutes from "./routes/login.route.js"
 import productRoutes from "./routes/product.route.js";
 import cartRoutes from "./routes/cart.route.js";
 import cors from "cors";
+
+import { connectRedis } from "./config/redis.js";
 const app = express();
 const PORT = 5000;
 
 connectDb();
+connectRedis();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
