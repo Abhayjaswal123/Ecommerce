@@ -1,5 +1,6 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../context/Authcontext";
+import Loading from "../pages/Loading";
 import { getProductsPath, type AuthUser } from "../utils/authStorage";
 
 type UserRole = NonNullable<AuthUser["role"]>;
@@ -13,7 +14,7 @@ export default function ProtectedRoute({
   const location = useLocation();
 
   if (loading) {
-    return <p>Checking authentication...</p>;
+    return <Loading />;
   }
 
   if (!user) {
