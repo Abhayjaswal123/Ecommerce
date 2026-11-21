@@ -81,6 +81,7 @@ const productSections = {
 
 const PAGE_SIZE = 10;
 const SECTION_PREVIEW_SIZE = 4;
+type CartAction = "add" | "remove";
 
 const currency = (amount: number) =>
   new Intl.NumberFormat("en-IN", {
@@ -111,6 +112,10 @@ const getCartQuantities = (response: CartResponse) => {
   return quantities;
 };
 
+const getCartQuantity = (response: CartResponse, productId: string) =>
+  response.cart?.items.find((item) => item.product?._id === productId)
+    ?.quantity ?? 0;
+
 export default function UserProducts() {
   const { section } = useParams<{ section?: string }>();
   const activeSection =
@@ -133,17 +138,26 @@ export default function UserProducts() {
 
   const [cart, setCart] = useState<Record<string, number>>({});
   const [cartLoaded, setCartLoaded] = useState(false);
-  const [updatingCart, setUpdatingCart] = useState(false);
-  const [updatingCartAction, setUpdatingCartAction] = useState<{
-    key: string;
-    type: "add" | "remove";
-  } | null>(null);
+  const [updatingCart, setUpdatingCart] = useState<Record<string, CartAction>>({});
   const [pagination, setPagination] = useState({ key: "", page: 1 });
 
   const cartCount = Object.values(cart).reduce(
     (total, quantity) => total + quantity,
     0,
   );
+
+  const updateCartQuantity = (response: CartResponse, productId: string) => {
+    const quantity = getCartQuantity(response, productId);
+    setCart((current) => {
+      if (quantity === 0) {
+        const next = { ...current };
+        delete next[productId];
+        return next;
+      }
+
+      return { ...current, [productId]: quantity };
+    });
+  };
 
   const filters = useMemo<ProductFilters>(
     () => ({
@@ -242,35 +256,36 @@ export default function UserProducts() {
     };
   }, []);
 
-  const addToCart = async (product: Product, key: string) => {
+  const addToCart = async (product: Product) => {
     if (
       !cartLoaded ||
-      updatingCart ||
+      updatingCart[product._id] ||
       product.quantity <= (cart[product._id] ?? 0)
     ) {
       return;
     }
 
-    setUpdatingCart(true);
-    setUpdatingCartAction({ key, type: "add" });
+    setUpdatingCart((current) => ({ ...current, [product._id]: "add" }));
     setPageError("");
 
     try {
       const response = await addCartItem(product._id);
-      setCart(getCartQuantities(response.data));
+      updateCartQuantity(response.data, product._id);
     } catch (error) {
       setPageError(getErrorMessage(error));
     } finally {
-      setUpdatingCart(false);
-      setUpdatingCartAction(null);
+      setUpdatingCart((current) => {
+        const next = { ...current };
+        delete next[product._id];
+        return next;
+      });
     }
   };
 
-  const removeFromCart = async (productId: string, key: string) => {
-    if (!cartLoaded || updatingCart) return;
+  const removeFromCart = async (productId: string) => {
+    if (!cartLoaded || updatingCart[productId]) return;
 
-    setUpdatingCart(true);
-    setUpdatingCartAction({ key, type: "remove" });
+    setUpdatingCart((current) => ({ ...current, [productId]: "remove" }));
     setPageError("");
 
     try {
@@ -279,12 +294,15 @@ export default function UserProducts() {
         quantity <= 1
           ? await removeCartItem(productId)
           : await updateCartItem(productId, quantity - 1);
-      setCart(getCartQuantities(response.data));
+      updateCartQuantity(response.data, productId);
     } catch (error) {
       setPageError(getErrorMessage(error));
     } finally {
-      setUpdatingCart(false);
-      setUpdatingCartAction(null);
+      setUpdatingCart((current) => {
+        const next = { ...current };
+        delete next[productId];
+        return next;
+      });
     }
   };
 
@@ -392,8 +410,7 @@ export default function UserProducts() {
               loading={loading}
               cart={cart}
               cartReady={cartLoaded}
-              cartUpdating={updatingCart}
-              updatingCartAction={updatingCartAction}
+              updatingCart={updatingCart}
               onAddToCart={addToCart}
               onRemoveFromCart={removeFromCart}
               likingProducts={likingProducts}
@@ -512,8 +529,7 @@ export default function UserProducts() {
             loading={loading}
             cart={cart}
             cartReady={cartLoaded}
-            cartUpdating={updatingCart}
-            updatingCartAction={updatingCartAction}
+            updatingCart={updatingCart}
             viewAllHref="/products/top"
             onAddToCart={addToCart}
             onRemoveFromCart={removeFromCart}
@@ -528,8 +544,7 @@ export default function UserProducts() {
             loading={loading}
             cart={cart}
             cartReady={cartLoaded}
-            cartUpdating={updatingCart}
-            updatingCartAction={updatingCartAction}
+            updatingCart={updatingCart}
             viewAllHref="/products/liked"
             onAddToCart={addToCart}
             onRemoveFromCart={removeFromCart}
@@ -544,8 +559,7 @@ export default function UserProducts() {
             loading={loading}
             cart={cart}
             cartReady={cartLoaded}
-            cartUpdating={updatingCart}
-            updatingCartAction={updatingCartAction}
+            updatingCart={updatingCart}
             viewAllHref="/products/all"
             onAddToCart={addToCart}
             onRemoveFromCart={removeFromCart}
@@ -567,8 +581,7 @@ function ProductSection({
   loading,
   cart,
   cartReady,
-  cartUpdating,
-  updatingCartAction,
+  updatingCart,
   viewAllHref,
   onAddToCart,
   onRemoveFromCart,
@@ -581,11 +594,10 @@ function ProductSection({
   loading: boolean;
   cart: Record<string, number>;
   cartReady: boolean;
-  cartUpdating: boolean;
-  updatingCartAction: { key: string; type: "add" | "remove" } | null;
+  updatingCart: Record<string, CartAction>;
   viewAllHref?: string;
-  onAddToCart: (product: Product, key: string) => void;
-  onRemoveFromCart: (productId: string, key: string) => void;
+  onAddToCart: (product: Product) => void;
+  onRemoveFromCart: (productId: string) => void;
   likingProducts: Record<string, boolean>;
   onToggleLike: (product: Product) => void;
 }) {
@@ -624,13 +636,9 @@ function ProductSection({
             const inCart = cart[product._id] ?? 0;
             const outOfStock = product.quantity <= 0;
             const cartLimitReached = inCart >= product.quantity;
-            const cartActionKey = `${title}:${product._id}`;
-            const isAdding =
-              updatingCartAction?.key === cartActionKey &&
-              updatingCartAction.type === "add";
-            const isRemoving =
-              updatingCartAction?.key === cartActionKey &&
-              updatingCartAction.type === "remove";
+            const cartAction = updatingCart[product._id];
+            const isAdding = cartAction === "add";
+            const isRemoving = cartAction === "remove";
 
             return (
               <Card
@@ -715,10 +723,8 @@ function ProductSection({
                         type="button"
                         variant="outline"
                         aria-label={`Remove one ${product.name} from cart`}
-                        disabled={!cartReady || cartUpdating}
-                        onClick={() =>
-                          void onRemoveFromCart(product._id, cartActionKey)
-                        }
+                        disabled={!cartReady || Boolean(cartAction)}
+                        onClick={() => void onRemoveFromCart(product._id)}
                         className="border-white/10 bg-transparent text-white hover:bg-white/10"
                       >
                         {isRemoving ? (
@@ -738,8 +744,8 @@ function ProductSection({
                         type="button"
                         variant="outline"
                         aria-label={`Add one ${product.name} to cart`}
-                        disabled={!cartReady || cartUpdating || cartLimitReached}
-                        onClick={() => void onAddToCart(product, cartActionKey)}
+                        disabled={!cartReady || Boolean(cartAction) || cartLimitReached}
+                        onClick={() => void onAddToCart(product)}
                         className="border-white/10 bg-transparent text-white hover:bg-white/10"
                       >
                         {isAdding ? (
@@ -752,8 +758,8 @@ function ProductSection({
                   ) : (
                     <Button
                       type="button"
-                      disabled={!cartReady || cartUpdating || outOfStock}
-                      onClick={() => void onAddToCart(product, cartActionKey)}
+                      disabled={!cartReady || Boolean(cartAction) || outOfStock}
+                      onClick={() => void onAddToCart(product)}
                       className="h-11 w-full gap-2 bg-[#a5e0d9] font-semibold text-[#171821] hover:bg-[#8bd5cc] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {isAdding ? (
@@ -765,9 +771,7 @@ function ProductSection({
                         ? "Adding..."
                         : outOfStock
                         ? "Out of Stock"
-                        : cartReady
-                          ? "Add to Cart"
-                          : "Loading Cart..."}
+                        : "Add to Cart"}
                     </Button>
                   )}
                 </CardContent>
