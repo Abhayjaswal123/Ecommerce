@@ -13,9 +13,7 @@ const populateCart = (query: ReturnType<typeof CartModel.findById>) =>
         },
     });
 
- export const getCart = async (req: Request, res: Response) => {
-    const start = Date.now();
-
+export const getCart = async (req: Request, res: Response) => {
     try {
         const userId = req.user?.id;
 
@@ -25,16 +23,9 @@ const populateCart = (query: ReturnType<typeof CartModel.findById>) =>
             });
         }
 
-        console.log("GET CART START");
-
-        // Redis GET
-        const redisStart = Date.now();
         const cachedCart = await getCachedCart(userId);
-        console.log("Redis GET:", Date.now() - redisStart, "ms");
 
         if (cachedCart) {
-            console.log("Total API:", Date.now() - start, "ms");
-
             return res.status(200).json({
                 message: "Cart retrieved successfully",
                 cart: cachedCart,
@@ -42,23 +33,14 @@ const populateCart = (query: ReturnType<typeof CartModel.findById>) =>
             });
         }
 
-        // MongoDB query + populate
-        const mongoStart = Date.now();
-
         const cart = await populateCart(
             CartModel.findOne({ user: userId }).read("secondaryPreferred")
         );
 
-        console.log("MongoDB + Populate:", Date.now() - mongoStart, "ms");
-
         if (!cart) {
             const emptyCart = { items: [] };
 
-            const redisSetStart = Date.now();
             await setCachedCart(userId, emptyCart);
-            console.log("Redis SET:", Date.now() - redisSetStart, "ms");
-
-            console.log("Total API:", Date.now() - start, "ms");
 
             return res.status(200).json({
                 message: "Cart retrieved successfully",
@@ -67,12 +49,7 @@ const populateCart = (query: ReturnType<typeof CartModel.findById>) =>
             });
         }
 
-        // Redis SET
-        const redisSetStart = Date.now();
         await setCachedCart(userId, cart);
-        console.log("Redis SET:", Date.now() - redisSetStart, "ms");
-
-        console.log("Total API:", Date.now() - start, "ms");
 
         return res.status(200).json({
             message: "Cart retrieved successfully",
@@ -82,7 +59,6 @@ const populateCart = (query: ReturnType<typeof CartModel.findById>) =>
 
     } catch (error) {
         console.error("Get cart error:", error);
-        console.log("Total API:", Date.now() - start, "ms");
 
         return res.status(500).json({
             message: "Internal server error",
