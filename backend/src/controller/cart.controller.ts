@@ -13,8 +13,9 @@ const populateCart = (query: ReturnType<typeof CartModel.findById>) =>
         },
     });
 
-// GET CART
-export const getCart = async (req: Request, res: Response) => {
+ export const getCart = async (req: Request, res: Response) => {
+    const start = Date.now();
+
     try {
         const userId = req.user?.id;
 
@@ -24,10 +25,16 @@ export const getCart = async (req: Request, res: Response) => {
             });
         }
 
-        // 1. Check Redis cache first
+        console.log("GET CART START");
+
+        // Redis GET
+        const redisStart = Date.now();
         const cachedCart = await getCachedCart(userId);
+        console.log("Redis GET:", Date.now() - redisStart, "ms");
 
         if (cachedCart) {
+            console.log("Total API:", Date.now() - start, "ms");
+
             return res.status(200).json({
                 message: "Cart retrieved successfully",
                 cart: cachedCart,
@@ -35,13 +42,23 @@ export const getCart = async (req: Request, res: Response) => {
             });
         }
 
-        const cart = await CartModel.findOne({ user: userId }).read("secondaryPreferred");
+        // MongoDB query + populate
+        const mongoStart = Date.now();
 
-         // 3. If cart doesn't exist, cache empty cart
+        const cart = await populateCart(
+            CartModel.findOne({ user: userId }).read("secondaryPreferred")
+        );
+
+        console.log("MongoDB + Populate:", Date.now() - mongoStart, "ms");
+
         if (!cart) {
             const emptyCart = { items: [] };
 
+            const redisSetStart = Date.now();
             await setCachedCart(userId, emptyCart);
+            console.log("Redis SET:", Date.now() - redisSetStart, "ms");
+
+            console.log("Total API:", Date.now() - start, "ms");
 
             return res.status(200).json({
                 message: "Cart retrieved successfully",
@@ -50,17 +67,22 @@ export const getCart = async (req: Request, res: Response) => {
             });
         }
 
-        const populatedCart = await populateCart(CartModel.findById(cart._id)).read("secondaryPreferred");
+        // Redis SET
+        const redisSetStart = Date.now();
+        await setCachedCart(userId, cart);
+        console.log("Redis SET:", Date.now() - redisSetStart, "ms");
 
-        // 5. Save populated cart in Redis
-        await setCachedCart(userId, populatedCart);
+        console.log("Total API:", Date.now() - start, "ms");
 
         return res.status(200).json({
             message: "Cart retrieved successfully",
-            cart: populatedCart,
+            cart,
+            source: "mongodb",
         });
+
     } catch (error) {
         console.error("Get cart error:", error);
+        console.log("Total API:", Date.now() - start, "ms");
 
         return res.status(500).json({
             message: "Internal server error",
