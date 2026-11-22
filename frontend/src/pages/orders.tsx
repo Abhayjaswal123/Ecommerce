@@ -3,7 +3,7 @@ import axios from "axios";
 import { Check, Package, RefreshCw, Truck } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { getOrders, updateOrderStatus, type Order, type OrderStatus } from "../api/orders";
-import { useAuth } from "../context/Authcontext";
+import { useAuth } from "../context/useAuth";
 
 const steps: OrderStatus[] = [
   "Pending",

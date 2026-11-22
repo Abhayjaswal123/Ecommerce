@@ -6,17 +6,25 @@ import { generateAuthToken } from "../utils/auth.util.js";
 // const cookieSecure = process.env.NODE_ENV === "production";
 
 export const register = async (req: Request, res: Response) => {
-    const { email, username, password, role = "user" } = req.body;
-    const start = Date.now();
+    const { email, username, password } = req.body;
+    const role = req.body.role === "vendor" ? "vendor" : "user";
 
-    if (!email || !username || !password) {
+    if (
+        typeof email !== "string" ||
+        typeof username !== "string" ||
+        typeof password !== "string" ||
+        !email.trim() ||
+        !username.trim() ||
+        password.length < 8
+    ) {
         return res.status(400).json({
             success: false,
-            message: "Email, username, and password are required."
+            message: "A valid email, username, and password of at least 8 characters are required."
         });
     }
 
-    const userExisted = await userModal.findOne({ email });
+    const normalizedEmail = email.trim().toLowerCase();
+    const userExisted = await userModal.findOne({ email: normalizedEmail });
     if (userExisted) {
         return res.status(400).json({
             success: false,
@@ -27,8 +35,8 @@ export const register = async (req: Request, res: Response) => {
     const hashPassword = await bcrypt.hash(password, 10);
 
     const user = await userModal.create({
-        username,
-        email,
+        username: username.trim(),
+        email: normalizedEmail,
         password: hashPassword,
         role
     })
@@ -37,13 +45,11 @@ export const register = async (req: Request, res: Response) => {
 
     res.cookie("token", token, {
         httpOnly: true,
-        secure: true,
-        sameSite: "none",
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
         maxAge: 24 * 60 * 60 * 1000,
         path: "/"
     });
-
-    console.log("Before response:", Date.now() - start);
 
     res.status(200).json({
         success: true,
@@ -60,13 +66,13 @@ export const register = async (req: Request, res: Response) => {
 export const login = async (req: Request, res: Response) => {
     const { email, password } = req.body;
 
-    if (!email || !password) {
+    if (typeof email !== "string" || typeof password !== "string" || !email.trim() || !password) {
         return res.status(400).json({
             success: false,
             message: "Email and password is required."
         });
     }
-    const userExisted = await userModal.findOne({ email });
+    const userExisted = await userModal.findOne({ email: email.trim().toLowerCase() });
 
     if (!userExisted) {
         return res.status(400).json({
@@ -90,8 +96,8 @@ export const login = async (req: Request, res: Response) => {
 
     res.cookie("token", token, {
         httpOnly: true,
-        secure: true,
-        sameSite: "none",
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
         maxAge: 24 * 60 * 60 * 1000,
         path: "/"
     });
@@ -111,8 +117,8 @@ export const login = async (req: Request, res: Response) => {
 export const logout = async (req: Request, res: Response) => {
     res.clearCookie("token", {
         httpOnly: true,
-        secure: true,
-        sameSite: "none",
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
         path: "/",
     });
 

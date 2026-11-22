@@ -1,5 +1,5 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
-import { useAuth } from "../context/Authcontext";
+import { useAuth } from "../context/useAuth";
 import Loading from "../pages/Loading";
 import { getProductsPath, type AuthUser } from "../utils/authStorage";
 

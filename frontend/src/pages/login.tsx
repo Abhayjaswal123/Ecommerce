@@ -7,7 +7,7 @@ import { ArrowRight, Check, Eye, EyeOff, LockKeyhole, Mail, Store } from "lucide
 import { Link, Navigate, useNavigate } from "react-router";
 import { getAuthUser, userLogin } from "../api/api";
 import { getProductsPath, saveUser } from "../utils/authStorage";
-import { useAuth } from "../context/Authcontext";
+import { useAuth } from "../context/useAuth";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),

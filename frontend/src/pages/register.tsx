@@ -1,15 +1,15 @@
 import { useState } from "react";
 import axios from "axios";
-import { ArrowRight, Eye, LockKeyhole, Mail, Store, UserRound } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail, Store, UserRound } from "lucide-react";
 import { Link, Navigate, useNavigate } from "react-router";
 import { useForm, type SubmitHandler } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { getAuthUser, userRegister } from "../api/api";
-import { saveUser } from "../utils/authStorage";
-import { useAuth } from "../context/Authcontext";
+import { getProductsPath, saveUser } from "../utils/authStorage";
+import { useAuth } from "../context/useAuth";
 
-export const userSchema = z.object({
+const userSchema = z.object({
   username: z
     .string()
     .min(3, "Username must be at least 3 characters")
@@ -40,6 +40,7 @@ type Inputs = z.infer<typeof userSchema>;
 function Register() {
   const navigate = useNavigate();
   const [requestError, setRequestError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const { user: currentUser, loading, setUser } = useAuth();
 
   const {
@@ -65,7 +66,7 @@ function Register() {
       };
       setUser(user);
       saveUser(user);
-      navigate("/home");
+      navigate(getProductsPath(user.role));
     } catch (error) {
       const message = axios.isAxiosError<{ message?: string }>(error)
         ? error.response?.data?.message ?? "Could not create your account. Please try again."
@@ -75,7 +76,7 @@ function Register() {
   };
 
   if (!loading && currentUser) {
-    return <Navigate to="/home" replace />;
+    return <Navigate to={getProductsPath(currentUser.role)} replace />;
   }
 
   return (
@@ -165,15 +166,18 @@ function Register() {
                   className="h-full min-w-0 flex-1 bg-transparent text-xs text-slate-800 outline-none placeholder:text-slate-400"
                   id="password"
                   {...register("password")}
-                  type="password"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="new-password"
                   placeholder="Create a password"
                 />
                 <button
                   className="grid size-6 place-items-center rounded text-slate-400 transition hover:text-indigo-600 focus-visible:outline-2 focus-visible:outline-indigo-500"
                   type="button"
-                  aria-label="Show password"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showPassword}
+                  onClick={() => setShowPassword((visible) => !visible)}
                 >
-                  <Eye size={14} />
+                  {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
                 </button>
               </span>
             </span>

@@ -10,7 +10,7 @@ import {
 import { Link, NavLink, useNavigate } from "react-router";
 import { logout } from "../api/api";
 import { getProductsPath, getStoredUser } from "../utils/authStorage";
-import { useAuth } from "../context/Authcontext";
+import { useAuth } from "../context/useAuth";
 
 const PRIMARY_COLOR = "#4F35F5";
 

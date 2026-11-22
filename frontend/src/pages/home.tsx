@@ -13,7 +13,7 @@ import {
 import { Link } from "react-router-dom";
 import { getOrders, updateOrderStatus, type Order, type OrderStatus } from "../api/orders";
 import { getVendorProducts, type Product } from "../api/product";
-import { useAuth } from "../context/Authcontext";
+import { useAuth } from "../context/useAuth";
 import {
   Card,
   CardContent,

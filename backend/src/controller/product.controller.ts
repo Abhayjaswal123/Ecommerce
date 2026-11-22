@@ -15,6 +15,37 @@ const parseProductCategory = (value: unknown): ProductCategory | undefined => {
   return productCategories.find((category) => category === trimmedValue);
 };
 
+const isValidProductNumber = (value: unknown) =>
+  typeof value === "number" &&
+  Number.isFinite(value) &&
+  value >= 0;
+
+const validateProductInput = (body: Request["body"]):
+  | { valid: true; input: { name: string; img: string; description: string; price: number; quantity: number; category: ProductCategory } }
+  | { valid: false; message: string } => {
+  const category = parseProductCategory(body.category);
+  const name = typeof body.name === "string" ? body.name.trim() : "";
+  const img = typeof body.img === "string" ? body.img.trim() : "";
+  const description = typeof body.description === "string" ? body.description.trim() : "";
+  const price = Number(body.price);
+  const quantity = Number(body.quantity);
+
+  if (!name) {
+    return { valid: false, message: "Product name is required." };
+  }
+  if (!category) {
+    return { valid: false, message: "Valid product category is required." };
+  }
+  if (!isValidProductNumber(price) || !isValidProductNumber(quantity) || !Number.isInteger(quantity)) {
+    return { valid: false, message: "Price and stock quantity must be valid non-negative numbers." };
+  }
+
+  return {
+    valid: true,
+    input: { name, img, description, price, quantity, category },
+  };
+};
+
 export const createProduct = async (
   req: Request,
   res: Response
@@ -28,22 +59,16 @@ export const createProduct = async (
       });
     }
 
-    const {
-      name,
-      img,
-      description,
-      price,
-      quantity,
-      category,
-    } = req.body;
+    const validation = validateProductInput(req.body);
+    if (!validation.valid) {
+      return res.status(400).json({
+        success: false,
+        message: validation.message,
+      });
+    }
 
     const product = await ProductModel.create({
-      name,
-      img,
-      description,
-      price,
-      quantity,
-      category,
+      ...validation.input,
       vendor: vendorId,
     });
 
@@ -386,12 +411,18 @@ export const updateProduct = async (
     }
 
     const { id } = req.params;
-    const { name, img, description, price, quantity, category } = req.body;
-
     if (!mongoose.isValidObjectId(id)) {
       return res.status(400).json({
         success: false,
         message: "Invalid product ID.",
+      });
+    }
+
+    const validation = validateProductInput(req.body);
+    if (!validation.valid) {
+      return res.status(400).json({
+        success: false,
+        message: validation.message,
       });
     }
 
@@ -400,7 +431,7 @@ export const updateProduct = async (
         _id: id,
         vendor: vendorId,
       },
-      { name, img, description, price, quantity, category },
+      validation.input,
       {
         new: true,
         runValidators: true,
