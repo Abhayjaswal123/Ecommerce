@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import {
     Boxes,
@@ -9,15 +9,12 @@ import {
 } from "lucide-react";
 
 import {
-    createProduct,
     deleteProduct,
     getVendorProducts,
     type Product,
     type ProductCategory,
     type ProductFilters,
-    type ProductInput,
     type ProductListResponse,
-    updateProduct,
 } from "@/api/product";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -31,13 +28,6 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
     Select,
@@ -46,40 +36,12 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import ProductSection from "@/components/resusable/ProductSection";
+import ProductDialog, { productCategories } from "@/components/resusable/ProductDialog";
 
-const categories: ProductCategory[] = [
-    "Electronics",
-    "Clothing",
-    "Footwear",
-    "Home & Kitchen",
-    "Beauty",
-    "Books",
-    "Sports",
-    "Accessories",
-    "Other",
-];
+const categories = productCategories;
 const stockFilters = ["all", "in-stock", "low-stock", "out-of-stock"] as const;
 const categoryOptions: Array<ProductCategory | "All"> = ["All", ...categories];
-
-type ProductForm = {
-    name: string;
-    img: string;
-    description: string;
-    price: string;
-    quantity: string;
-    category: string;
-};
-
-const emptyForm: ProductForm = {
-    name: "",
-    img: "",
-    description: "",
-    price: "",
-    quantity: "",
-    category: "",
-};
 
 const currency = (amount: number) =>
     new Intl.NumberFormat("en-IN", {
@@ -107,10 +69,7 @@ export default function VendorProducts() {
         "all" | NonNullable<ProductFilters["stock"]>
     >("all");
     const [dialogOpen, setDialogOpen] = useState(false);
-    const [form, setForm] = useState<ProductForm>(emptyForm);
-    const [formError, setFormError] = useState("");
     const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-    const [saving, setSaving] = useState(false);
     const [productToDelete, setProductToDelete] = useState<Product | null>(null);
     const [deleting, setDeleting] = useState(false);
 
@@ -163,32 +122,32 @@ export default function VendorProducts() {
     }, [filters, loadProducts, search]);
 
     const totalStock = products.reduce(
-        (total, product) => total + product.quantity,
+        (total, product) =>
+            total +
+            (Array.isArray(product.variants) ? product.variants : []).reduce(
+                (variantTotal, variant) => variantTotal + variant.quantity,
+                0,
+            ),
         0,
     );
     const inventoryValue = products.reduce(
-        (total, product) => total + product.price * product.quantity,
+        (total, product) =>
+            total +
+            (Array.isArray(product.variants) ? product.variants : []).reduce(
+                (variantTotal, variant) =>
+                    variantTotal + variant.price * variant.quantity,
+                0,
+            ),
         0,
     );
 
     const openCreateDialog = () => {
         setEditingProduct(null);
-        setForm(emptyForm);
-        setFormError("");
         setDialogOpen(true);
     };
 
     const openEditDialog = (product: Product) => {
         setEditingProduct(product);
-        setForm({
-            name: product.name,
-            img: product.img,
-            description: product.description,
-            price: String(product.price),
-            quantity: String(product.quantity),
-            category: product.category,
-        });
-        setFormError("");
         setDialogOpen(true);
     };
 
@@ -196,45 +155,6 @@ export default function VendorProducts() {
         setDialogOpen(open);
         if (!open) {
             setEditingProduct(null);
-            setForm(emptyForm);
-            setFormError("");
-        }
-    };
-
-    const handleSaveProduct = async (event: FormEvent<HTMLFormElement>) => {
-        event.preventDefault();
-        setFormError("");
-
-        const category = categories.find((option) => option === form.category);
-        if (!category) {
-            setFormError("Choose a product category.");
-            return;
-        }
-
-        const productInput: ProductInput = {
-            name: form.name.trim(),
-            img: form.img.trim(),
-            description: form.description.trim(),
-            price: Number(form.price),
-            quantity: Number(form.quantity),
-            category,
-        };
-
-        setSaving(true);
-        try {
-            if (editingProduct) {
-                await updateProduct(editingProduct._id, productInput);
-            } else {
-                await createProduct(productInput);
-            }
-            setDialogOpen(false);
-            setEditingProduct(null);
-            setForm(emptyForm);
-            await loadProducts(filters);
-        } catch (error) {
-            setFormError(getErrorMessage(error));
-        } finally {
-            setSaving(false);
         }
     };
 
@@ -398,187 +318,12 @@ export default function VendorProducts() {
                     />
                 </div>
 
-                <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
-                    <DialogContent className="border-white/10 bg-[#20212b] text-white sm:max-w-[560px]">
-                        <DialogHeader>
-                            <DialogTitle>
-                                {editingProduct ? "Edit Product" : "Add New Product"}
-                            </DialogTitle>
-                            <DialogDescription className="text-slate-400">
-                                Enter the product details below.
-                            </DialogDescription>
-                        </DialogHeader>
-
-                        <form onSubmit={handleSaveProduct} className="space-y-5">
-                            {formError && (
-                                <div
-                                    role="alert"
-                                    className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300"
-                                >
-                                    {formError}
-                                </div>
-                            )}
-                            <div className="space-y-2">
-                                <label
-                                    htmlFor="product-name"
-                                    className="text-sm leading-none font-medium"
-                                >
-                                    Product Name *
-                                </label>
-                                <Input
-                                    id="product-name"
-                                    required
-                                    value={form.name}
-                                    onChange={(event) =>
-                                        setForm({ ...form, name: event.target.value })
-                                    }
-                                    placeholder="Enter product name"
-                                    className="border-white/10 bg-[#171821]"
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <label
-                                    htmlFor="product-description"
-                                    className="text-sm leading-none font-medium"
-                                >
-                                    Description
-                                </label>
-                                <Textarea
-                                    id="product-description"
-                                    value={form.description}
-                                    onChange={(event) =>
-                                        setForm({
-                                            ...form,
-                                            description: event.target.value,
-                                        })
-                                    }
-                                    placeholder="Describe your product"
-                                    className="border-white/10 bg-[#171821]"
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                                <div className="space-y-2">
-                                    <label
-                                        htmlFor="product-category"
-                                        className="text-sm leading-none font-medium"
-                                    >
-                                        Category *
-                                    </label>
-                                    <Select
-                                        value={form.category || null}
-                                        onValueChange={(value) =>
-                                            setForm({ ...form, category: value ?? "" })
-                                        }
-                                    >
-                                        <SelectTrigger
-                                            id="product-category"
-                                            className="border-white/10 bg-[#171821]"
-                                        >
-                                            <SelectValue placeholder="Choose category" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {categories.map((category) => (
-                                                <SelectItem key={category} value={category}>
-                                                    {category}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <label
-                                        htmlFor="product-price"
-                                        className="text-sm leading-none font-medium"
-                                    >
-                                        Price (₹) *
-                                    </label>
-                                    <Input
-                                        id="product-price"
-                                        required
-                                        type="number"
-                                        min="0"
-                                        step="0.01"
-                                        value={form.price}
-                                        onChange={(event) =>
-                                            setForm({ ...form, price: event.target.value })
-                                        }
-                                        placeholder="Enter price"
-                                        className="border-white/10 bg-[#171821]"
-                                    />
-                                </div>
-
-                                <div className="space-y-2 sm:col-span-2">
-                                    <label
-                                        htmlFor="product-quantity"
-                                        className="text-sm leading-none font-medium"
-                                    >
-                                        Stock Quantity *
-                                    </label>
-                                    <Input
-                                        id="product-quantity"
-                                        required
-                                        type="number"
-                                        min="0"
-                                        step="1"
-                                        value={form.quantity}
-                                        onChange={(event) =>
-                                            setForm({
-                                                ...form,
-                                                quantity: event.target.value,
-                                            })
-                                        }
-                                        placeholder="Enter available quantity"
-                                        className="border-white/10 bg-[#171821]"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <label
-                                    htmlFor="product-image"
-                                    className="text-sm leading-none font-medium"
-                                >
-                                    Image URL
-                                </label>
-                                <Input
-                                    id="product-image"
-                                    type="url"
-                                    value={form.img}
-                                    onChange={(event) =>
-                                        setForm({ ...form, img: event.target.value })
-                                    }
-                                    placeholder="https://example.com/product.jpg"
-                                    className="border-white/10 bg-[#171821]"
-                                />
-                            </div>
-
-                            <div className="flex justify-end gap-3">
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => handleDialogChange(false)}
-                                    className="border-white/10 bg-transparent text-white"
-                                >
-                                    Cancel
-                                </Button>
-                                <Button
-                                    type="submit"
-                                    disabled={saving}
-                                    className="bg-[#a5e0d9] text-[#171821] hover:bg-[#8bd5cc]"
-                                >
-                                    {saving
-                                        ? "Saving..."
-                                        : editingProduct
-                                            ? "Save Changes"
-                                            : "Add Product"}
-                                </Button>
-                            </div>
-                        </form>
-                    </DialogContent>
-                </Dialog>
+                <ProductDialog
+                    open={dialogOpen}
+                    editingProduct={editingProduct}
+                    onOpenChange={handleDialogChange}
+                    onSaved={() => loadProducts(filters)}
+                />
 
                 <AlertDialog
                     open={productToDelete !== null}

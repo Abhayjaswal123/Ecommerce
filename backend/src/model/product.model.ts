@@ -15,19 +15,19 @@ export const productCategories = [
 
 export type ProductCategory = (typeof productCategories)[number];
 
-const productSchema = new mongoose.Schema(
+const variantSchema = new mongoose.Schema(
   {
-    name: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    img: {
+    size: {
       type: String,
       trim: true,
       default: "",
     },
-    description: {
+    color: {
+      type: String,
+      trim: true,
+      required: true,
+    },
+    img: {
       type: String,
       trim: true,
       default: "",
@@ -42,6 +42,26 @@ const productSchema = new mongoose.Schema(
       required: true,
       min: 0,
       default: 0,
+    },
+  },
+  { _id: true }
+)
+
+const productSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    description: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    variants: {
+      type: [variantSchema],
+      default: [],
     },
     category: {
       type: String,

@@ -120,9 +120,14 @@ export const addToCart = async (req: Request, res: Response) => {
             : quantity;
 
         // Check available stock
-        if (newQuantity > product.quantity) {
+        const availableQuantity = product.variants.reduce(
+            (total, variant) => total + variant.quantity,
+            0,
+        );
+
+        if (newQuantity > availableQuantity) {
             return res.status(400).json({
-                message: `Only ${product.quantity} units are available`,
+                message: `Only ${availableQuantity} units are available`,
             });
         }
 
@@ -215,9 +220,14 @@ export const updateCartItem = async (req: Request, res: Response) => {
             });
         }
 
-        if (quantity > product.quantity) {
+        const availableQuantity = product.variants.reduce(
+            (total, variant) => total + variant.quantity,
+            0,
+        );
+
+        if (quantity > availableQuantity) {
             return res.status(400).json({
-                message: `Only ${product.quantity} units are available`,
+                message: `Only ${availableQuantity} units are available`,
             });
         }
 

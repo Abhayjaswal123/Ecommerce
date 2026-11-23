@@ -12,7 +12,12 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { getOrders, updateOrderStatus, type Order, type OrderStatus } from "../api/orders";
-import { getVendorProducts, type Product } from "../api/product";
+import {
+  getProductImage,
+  getProductQuantity,
+  getVendorProducts,
+  type Product,
+} from "../api/product";
 import { useAuth } from "../context/useAuth";
 import {
   Card,
@@ -164,7 +169,7 @@ function Home() {
       {
         label: "Customers",
         value: String(customerIds.size),
-        detail: `${products.filter((product) => product.quantity <= 5).length} products low in stock`,
+        detail: `${products.filter((product) => getProductQuantity(product) <= 5).length} products low in stock`,
         icon: UsersRound,
         color: colors[3],
       },
@@ -435,9 +440,9 @@ function Home() {
                         key={product._id}
                         className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-[#171821] p-3"
                       >
-                        {product.img ? (
+                        {getProductImage(product) ? (
                           <img
-                            src={product.img}
+                            src={getProductImage(product)}
                             alt=""
                             className="size-11 rounded-lg object-cover"
                           />
@@ -451,19 +456,19 @@ function Home() {
                             {product.name}
                           </p>
                           <p className="mt-1 text-xs text-slate-400">
-                            {product.unitsOrdered} ordered · {product.quantity} in stock
+                            {product.unitsOrdered} ordered · {getProductQuantity(product)} in stock
                           </p>
                         </div>
-                        {product.quantity <= 5 && (
+                        {getProductQuantity(product) <= 5 && (
                           <span
                             className={`inline-flex items-center gap-1 whitespace-nowrap text-xs ${
-                              product.quantity === 0
+                              getProductQuantity(product) === 0
                                 ? "text-red-300"
                                 : "text-amber-200"
                             }`}
                           >
                             <CircleAlert size={14} />
-                            {product.quantity === 0 ? "Out" : "Low"}
+                            {getProductQuantity(product) === 0 ? "Out" : "Low"}
                           </span>
                         )}
                       </div>

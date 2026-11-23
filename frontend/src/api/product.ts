@@ -11,20 +11,27 @@ export type ProductCategory =
   | "Accessories"
   | "Other";
 
+export type ProductVariant = {
+  _id?: string;
+  size: string;
+  color: string;
+  img: string;
+  price: number;
+  quantity: number;
+};
+
 export type Product = {
   _id: string;
   name: string;
-  img: string;
   description: string;
-  price: number;
-  quantity: number;
+  variants: ProductVariant[];
   category: ProductCategory;
   vendor?: string | { _id: string; username?: string };
   likesCount?: number;
   isLiked?: boolean;
 };
 
-export type ProductInput = Omit<Product, "_id" | "likesCount">;
+export type ProductInput = Omit<Product, "_id" | "likesCount" | "isLiked" | "vendor">;
 
 export type ProductListResponse = {
   success: boolean;
@@ -50,6 +57,28 @@ export type ProductFilters = {
   category?: ProductCategory;
   stock?: "in-stock" | "low-stock" | "out-of-stock";
 };
+
+export const getProductVariants = (product: Product) =>
+  Array.isArray(product.variants) ? product.variants : [];
+
+export const getProductQuantity = (product: Product) =>
+  getProductVariants(product).reduce(
+    (total, variant) => total + (Number(variant.quantity) || 0),
+    0,
+  );
+
+export const getProductPrice = (product: Product) => {
+  const variants = getProductVariants(product);
+  if (variants.length === 0) return 0;
+
+  const prices = variants
+    .map((variant) => Number(variant.price))
+    .filter((price) => Number.isFinite(price));
+  return prices.length ? Math.min(...prices) : 0;
+};
+
+export const getProductImage = (product: Product) =>
+  getProductVariants(product).find((variant) => variant.img)?.img;
 
 export const getProducts = (filters: ProductFilters = {}) =>
   api.get<ProductListResponse>("/api/products", {

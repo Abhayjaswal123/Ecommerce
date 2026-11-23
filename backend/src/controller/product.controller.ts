@@ -6,6 +6,21 @@ import ProductModel, {
   type ProductRecord,
 } from "../model/product.model.js";
 
+type ProductVariantInput = {
+  size: string;
+  color: string;
+  img: string;
+  price: number;
+  quantity: number;
+};
+
+type ProductInput = {
+  name: string;
+  description: string;
+  category: ProductCategory;
+  variants: ProductVariantInput[];
+};
+
 const parseProductCategory = (value: unknown): ProductCategory | undefined => {
   if (typeof value !== "string") {
     return undefined;
@@ -20,32 +35,76 @@ const isValidProductNumber = (value: unknown) =>
   Number.isFinite(value) &&
   value >= 0;
 
-const validateProductInput = (body: Request["body"]):
-  | { valid: true; input: { name: string; img: string; description: string; price: number; quantity: number; category: ProductCategory } }
+const validateProductInput = (
+  body: Request["body"]
+):
+  | { valid: true; input: ProductInput }
   | { valid: false; message: string } => {
-  const category = parseProductCategory(body.category);
   const name = typeof body.name === "string" ? body.name.trim() : "";
-  const img = typeof body.img === "string" ? body.img.trim() : "";
-  const description = typeof body.description === "string" ? body.description.trim() : "";
-  const price = Number(body.price);
-  const quantity = Number(body.quantity);
+  const description =
+    typeof body.description === "string" ? body.description.trim() : "";
+  const category = parseProductCategory(body.category);
 
   if (!name) {
     return { valid: false, message: "Product name is required." };
   }
+
   if (!category) {
     return { valid: false, message: "Valid product category is required." };
   }
-  if (!isValidProductNumber(price) || !isValidProductNumber(quantity) || !Number.isInteger(quantity)) {
-    return { valid: false, message: "Price and stock quantity must be valid non-negative numbers." };
+
+  if (!Array.isArray(body.variants) || body.variants.length === 0) {
+    return { valid: false, message: "At least one product variant is required." };
+  }
+
+  const variants: ProductVariantInput[] = [];
+
+  for (const variant of body.variants) {
+    if (!variant || typeof variant !== "object") {
+      return { valid: false, message: "Invalid product variant." };
+    }
+
+    const size = typeof variant.size === "string" ? variant.size.trim() : "";
+    const color = typeof variant.color === "string" ? variant.color.trim() : "";
+    const img = typeof variant.img === "string" ? variant.img.trim() : "";
+
+    const price = Number(variant.price);
+    const quantity = Number(variant.quantity);
+
+    if (!color) {
+      return { valid: false, message: "Variant color is required." };
+    }
+
+    if (
+      !isValidProductNumber(price) ||
+      !isValidProductNumber(quantity) ||
+      !Number.isInteger(quantity)
+    ) {
+      return {
+        valid: false,
+        message: "Variant price and quantity must be valid non-negative numbers.",
+      };
+    }
+
+    variants.push({
+      size,
+      color,
+      img,
+      price,
+      quantity,
+    });
   }
 
   return {
     valid: true,
-    input: { name, img, description, price, quantity, category },
+    input: {
+      name,
+      description,
+      category,
+      variants,
+    },
   };
 };
-
 export const createProduct = async (
   req: Request,
   res: Response
@@ -154,11 +213,11 @@ export const getProducts = async (
     }
 
     if (stock === "in-stock") {
-      filter.quantity = { $gt: 5 };
+      filter["variants.quantity"] = { $gt: 5 };
     } else if (stock === "low-stock") {
-      filter.quantity = { $gt: 0, $lte: 5 };
+      filter["variants.quantity"] = { $gt: 0, $lte: 5 };
     } else if (stock === "out-of-stock") {
-      filter.quantity = 0;
+      filter["variants.quantity"] = 0;
     }
 
     // Fetch matching public products
@@ -262,11 +321,11 @@ export const getVendorProducts = async (
       filter.category = categoryValue;
     }
     if (stock === "in-stock") {
-      filter.quantity = { $gt: 5 };
+      filter["variants.quantity"] = { $gt: 5 };
     } else if (stock === "low-stock") {
-      filter.quantity = { $gt: 0, $lte: 5 };
+      filter["variants.quantity"] = { $gt: 0, $lte: 5 };
     } else if (stock === "out-of-stock") {
-      filter.quantity = 0;
+      filter["variants.quantity"] = 0;
     }
 
     const storedProducts = await ProductModel.find(filter)

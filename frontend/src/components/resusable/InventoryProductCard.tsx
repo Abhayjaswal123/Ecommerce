@@ -19,19 +19,29 @@ function InventoryProductCard({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+  const totalQuantity = variants.reduce(
+    (total, variant) => total + variant.quantity,
+    0,
+  );
+  const lowestPrice = variants.length
+    ? Math.min(...variants.map((variant) => variant.price))
+    : 0;
+  const productImage = variants.find((variant) => variant.img)?.img;
+
   const stockLabel =
-    product.quantity === 0
+    totalQuantity === 0
       ? "Out of Stock"
-      : product.quantity <= 5
+      : totalQuantity <= 5
         ? "Low Stock"
         : "In Stock";
 
   return (
     <article className="group overflow-hidden rounded-xl border border-white/[0.08] bg-[#171821] transition-colors hover:border-white/20">
       <div className="relative flex h-48 items-center justify-center overflow-hidden bg-[#252633]">
-        {product.img ? (
+        {productImage ? (
           <img
-            src={product.img}
+            src={productImage}
             alt={product.name}
             className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
@@ -40,9 +50,9 @@ function InventoryProductCard({
         )}
         <Badge
           className={`absolute right-3 top-3 border-0 ${
-            product.quantity === 0
+            totalQuantity === 0
               ? "bg-red-500/15 text-red-400"
-              : product.quantity <= 5
+              : totalQuantity <= 5
                 ? "bg-amber-500/15 text-amber-400"
                 : "bg-emerald-500/15 text-emerald-400"
           }`}
@@ -67,10 +77,10 @@ function InventoryProductCard({
         <div className="flex items-center justify-between gap-2 border-t border-white/[0.08] pt-4">
           <div>
             <p className="text-xl font-bold text-white">
-              {currency(product.price)}
+              {currency(lowestPrice)}
             </p>
             <p className="mt-1 text-xs text-slate-400">
-              Stock: {product.quantity} units
+              Stock: {totalQuantity} units
             </p>
           </div>
           <div className="flex gap-2">

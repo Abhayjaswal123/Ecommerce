@@ -28,6 +28,9 @@ import {
 } from "@/api/cart";
 import {
   getProducts,
+  getProductImage,
+  getProductPrice,
+  getProductQuantity,
   likeProduct,
   unlikeProduct,
   type Product,
@@ -207,7 +210,13 @@ export default function UserProducts() {
       const unique = (items: Product[]) =>
         Array.from(
           new Map(
-            items.map((product) => [product._id, product]),
+            (Array.isArray(items) ? items : []).map((product) => [
+              product._id,
+              {
+                ...product,
+                variants: Array.isArray(product.variants) ? product.variants : [],
+              },
+            ]),
           ).values(),
         );
 
@@ -260,7 +269,7 @@ export default function UserProducts() {
     if (
       !cartLoaded ||
       updatingCart[product._id] ||
-      product.quantity <= (cart[product._id] ?? 0)
+      getProductQuantity(product) <= (cart[product._id] ?? 0)
     ) {
       return;
     }
@@ -347,7 +356,7 @@ export default function UserProducts() {
   const getCartTotal = () =>
     products.reduce(
       (total, product) =>
-        total + product.price * (cart[product._id] ?? 0),
+        total + getProductPrice(product) * (cart[product._id] ?? 0),
       0,
     );
 
@@ -634,8 +643,11 @@ function ProductSection({
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {products.map((product) => {
             const inCart = cart[product._id] ?? 0;
-            const outOfStock = product.quantity <= 0;
-            const cartLimitReached = inCart >= product.quantity;
+            const productQuantity = getProductQuantity(product);
+            const productPrice = getProductPrice(product);
+            const productImage = getProductImage(product);
+            const outOfStock = productQuantity <= 0;
+            const cartLimitReached = inCart >= productQuantity;
             const cartAction = updatingCart[product._id];
             const isAdding = cartAction === "add";
             const isRemoving = cartAction === "remove";
@@ -647,9 +659,9 @@ function ProductSection({
               >
                 {/* Product image */}
                 <div className="relative aspect-[4/3] overflow-hidden bg-[#30313d]">
-                  {product.img ? (
+                  {productImage ? (
                     <img
-                      src={product.img}
+                      src={productImage}
                       alt={product.name}
                       loading="lazy"
                       className="size-full object-cover transition-transform duration-300 hover:scale-105"
@@ -708,11 +720,11 @@ function ProductSection({
 
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-xl font-bold text-[#a5e0d9]">
-                      {currency(product.price)}
+                      {currency(productPrice)}
                     </span>
 
                     <span className="text-xs text-slate-400">
-                      {product.quantity} available
+                      {productQuantity} available
                     </span>
                   </div>
 

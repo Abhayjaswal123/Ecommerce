@@ -24,7 +24,12 @@ import {
   type CartLine,
   type CartResponse,
 } from "@/api/cart";
-import type { Product } from "@/api/product";
+import {
+  getProductImage,
+  getProductPrice,
+  getProductQuantity,
+  type Product,
+} from "@/api/product";
 import { createOrder } from "@/api/orders";
 
 const formatPrice = (price: number) =>
@@ -54,6 +59,7 @@ export default function Cart() {
   const applyCartResponse = useCallback((response: CartResponse) => {
     setCartItems(response.cart?.items ?? []);
   }, []);
+
 
   const loadCart = useCallback(async () => {
     setLoading(true);
@@ -114,7 +120,8 @@ export default function Cart() {
     [cartItems],
   );
   const subtotal = availableItems.reduce(
-    (total, item) => total + item.product.price * item.quantity,
+    (total, item) =>
+      total + getProductPrice(item.product) * item.quantity,
     0,
   );
   const itemCount = availableItems.reduce(
@@ -129,7 +136,7 @@ export default function Cart() {
     vendorSubtotals.set(
       vendorId,
       (vendorSubtotals.get(vendorId) ?? 0) +
-        item.product.price * item.quantity,
+        getProductPrice(item.product) * item.quantity,
     );
   }
   const shipping = [...vendorSubtotals.values()].reduce(
@@ -230,6 +237,9 @@ export default function Cart() {
               {availableItems.map((item) => {
                 const product = item.product;
                 const isUpdating = updatingItems[product._id] ?? false;
+                const productPrice = getProductPrice(product);
+                const productQuantity = getProductQuantity(product);
+                const productImage = getProductImage(product);
 
                 return (
                   <article
@@ -237,7 +247,7 @@ export default function Cart() {
                     className="flex flex-col gap-4 rounded-2xl border border-[#30313D] bg-[#20212B] p-4 transition hover:border-[#A5E2DB]/40 sm:flex-row sm:items-center sm:p-5"
                   >
                     <img
-                      src={product.img || "https://placehold.co/120x120?text=Product"}
+                      src={productImage || "https://placehold.co/120x120?text=Product"}
                       alt={product.name}
                       className="size-24 rounded-xl border border-[#30313D] bg-[#171821] object-cover"
                     />
@@ -247,10 +257,10 @@ export default function Cart() {
                         {product.name}
                       </h2>
                       <p className="mt-1 text-sm text-[#91B5D9]">
-                        {formatPrice(product.price)} per item
+                        {formatPrice(productPrice)} per item
                       </p>
                       <p className="mt-2 font-bold text-[#A5E2DB]">
-                        {formatPrice(product.price * item.quantity)}
+                        {formatPrice(productPrice * item.quantity)}
                       </p>
                     </div>
 
@@ -275,7 +285,7 @@ export default function Cart() {
                         </span>
                         <button
                           type="button"
-                          disabled={isUpdating || item.quantity >= product.quantity}
+                          disabled={isUpdating || item.quantity >= productQuantity}
                           onClick={() =>
                             void updateItem(product._id, item.quantity + 1)
                           }

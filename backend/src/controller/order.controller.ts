@@ -65,16 +65,24 @@ export const createOrder = async (req: Request, res: Response) => {
 
     for (const cartItem of cart.items) {
       const product = productsById.get(cartItem.product.toString());
-      if (!product || product.quantity < cartItem.quantity) {
+      const availableQuantity = product
+        ? product.variants.reduce(
+            (total, variant) => total + variant.quantity,
+            0,
+          )
+        : 0;
+      if (!product || availableQuantity < cartItem.quantity) {
         return res.status(400).json({
           success: false,
           message: product
-            ? `Only ${product.quantity} units of ${product.name} are available.`
+            ? `Only ${availableQuantity} units of ${product.name} are available.`
             : "A product in your cart is no longer available.",
         });
       }
 
       const vendorId = product.vendor.toString();
+      const displayVariant =
+        [...product.variants].sort((a, b) => a.price - b.price)[0];
       const group = groups.get(vendorId) ?? {
         vendor: product.vendor,
         items: [],
@@ -83,11 +91,11 @@ export const createOrder = async (req: Request, res: Response) => {
       group.items.push({
         product: product._id,
         name: product.name,
-        img: product.img,
-        unitPrice: product.price,
+        img: displayVariant?.img ?? "",
+        unitPrice: displayVariant?.price ?? 0,
         quantity: cartItem.quantity,
       });
-      group.subtotal += product.price * cartItem.quantity;
+      group.subtotal += (displayVariant?.price ?? 0) * cartItem.quantity;
       groups.set(vendorId, group);
     }
 
