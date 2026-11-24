@@ -263,6 +263,13 @@ export default function Orders() {
                             <p className="truncate font-medium">
                               {item.name ?? "Product details unavailable"}
                             </p>
+                            {(item.color || item.size) && (
+                              <p className="mt-1 text-xs text-[#91B5D9]">
+                                {[item.color, item.size]
+                                  .filter(Boolean)
+                                  .join(" · ")}
+                              </p>
+                            )}
                             <p className="mt-1 text-sm text-[#91B5D9]">
                               Qty {quantity} × {formatPrice(unitPrice)}
                             </p>

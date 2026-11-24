@@ -19,6 +19,9 @@ export type Order = {
     product: string;
     name?: string;
     img?: string;
+    variantId?: string;
+    size?: string;
+    color?: string;
     unitPrice?: number | null;
     price?: number | null;
     quantity?: number | null;

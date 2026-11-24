@@ -23,6 +23,17 @@ const orderItemSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    variantId: {
+      type: mongoose.Schema.Types.ObjectId,
+    },
+    size: {
+      type: String,
+      default: "",
+    },
+    color: {
+      type: String,
+      default: "",
+    },
     unitPrice: {
       type: Number,
       required: true,

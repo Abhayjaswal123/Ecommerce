@@ -56,6 +56,9 @@ export const createOrder = async (req: Request, res: Response) => {
           product: mongoose.Types.ObjectId;
           name: string;
           img: string;
+          variantId: mongoose.Types.ObjectId;
+          size: string;
+          color: string;
           unitPrice: number;
           quantity: number;
         }[];
@@ -65,24 +68,25 @@ export const createOrder = async (req: Request, res: Response) => {
 
     for (const cartItem of cart.items) {
       const product = productsById.get(cartItem.product.toString());
-      const availableQuantity = product
-        ? product.variants.reduce(
-            (total, variant) => total + variant.quantity,
-            0,
-          )
-        : 0;
-      if (!product || availableQuantity < cartItem.quantity) {
+      const variant = product
+        ? cartItem.variantId
+          ? product.variants.find(
+              (item) => item._id.toString() === cartItem.variantId?.toString(),
+            )
+          : [...product.variants]
+              .sort((a, b) => a.price - b.price)
+              .find((item) => item.quantity >= cartItem.quantity)
+        : undefined;
+      if (!product || !variant || variant.quantity < cartItem.quantity) {
         return res.status(400).json({
           success: false,
           message: product
-            ? `Only ${availableQuantity} units of ${product.name} are available.`
+            ? `Only ${variant?.quantity ?? 0} units of ${product.name} (${variant?.color ?? "selected variant"}${variant?.size ? `, size ${variant.size}` : ""}) are available.`
             : "A product in your cart is no longer available.",
         });
       }
 
       const vendorId = product.vendor.toString();
-      const displayVariant =
-        [...product.variants].sort((a, b) => a.price - b.price)[0];
       const group = groups.get(vendorId) ?? {
         vendor: product.vendor,
         items: [],
@@ -91,11 +95,14 @@ export const createOrder = async (req: Request, res: Response) => {
       group.items.push({
         product: product._id,
         name: product.name,
-        img: displayVariant?.img ?? "",
-        unitPrice: displayVariant?.price ?? 0,
+        img: variant.img,
+        variantId: variant._id,
+        size: variant.size,
+        color: variant.color,
+        unitPrice: variant.price,
         quantity: cartItem.quantity,
       });
-      group.subtotal += (displayVariant?.price ?? 0) * cartItem.quantity;
+      group.subtotal += variant.price * cartItem.quantity;
       groups.set(vendorId, group);
     }
 
@@ -224,13 +231,29 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
 
           if (order.status === "Pending" && nextStatus === "Confirmed") {
             for (const item of order.items) {
+              const product = item.variantId
+                ? null
+                : await ProductModel.findOne({
+                    _id: item.product,
+                    vendor: vendorId,
+                  }).session(session);
+              const variantId =
+                item.variantId ??
+                product?.variants.find(
+                  (variant) => variant.quantity >= item.quantity,
+                )?._id;
               const stockUpdate = await ProductModel.updateOne(
                 {
                   _id: item.product,
                   vendor: vendorId,
-                  quantity: { $gte: item.quantity },
+                  variants: {
+                    $elemMatch: {
+                      _id: variantId,
+                      quantity: { $gte: item.quantity },
+                    },
+                  },
                 },
-                { $inc: { quantity: -item.quantity } },
+                { $inc: { "variants.$.quantity": -item.quantity } },
                 { session },
               );
               if (stockUpdate.matchedCount !== 1) {

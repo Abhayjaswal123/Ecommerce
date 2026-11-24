@@ -100,6 +100,25 @@ export const addToCart = async (req: Request, res: Response) => {
             });
         }
 
+        const variantId = req.body.variantId;
+        if (
+            variantId !== undefined &&
+            (typeof variantId !== "string" || !mongoose.isValidObjectId(variantId))
+        ) {
+            return res.status(400).json({
+                message: "Invalid product variant ID",
+            });
+        }
+
+        const selectedVariant = variantId
+            ? product.variants.find((variant) => variant._id.toString() === variantId)
+            : undefined;
+        if (variantId && !selectedVariant) {
+            return res.status(404).json({
+                message: "Product variant not found",
+            });
+        }
+
         // Find the user's cart or create one
         let cart = await CartModel.findOne({ user: userId });
 
@@ -112,7 +131,11 @@ export const addToCart = async (req: Request, res: Response) => {
 
         // Check if this product is already in the cart
         const existingItem = cart.items.find(
-            (item) => item.product.toString() === productId
+            (item) =>
+                item.product.toString() === productId &&
+                (variantId
+                    ? item.variantId?.toString() === variantId
+                    : !item.variantId)
         );
 
         const newQuantity = existingItem
@@ -120,10 +143,12 @@ export const addToCart = async (req: Request, res: Response) => {
             : quantity;
 
         // Check available stock
-        const availableQuantity = product.variants.reduce(
-            (total, variant) => total + variant.quantity,
-            0,
-        );
+        const availableQuantity = selectedVariant
+            ? selectedVariant.quantity
+            : product.variants.reduce(
+                (total, variant) => total + variant.quantity,
+                0,
+            );
 
         if (newQuantity > availableQuantity) {
             return res.status(400).json({
@@ -138,6 +163,7 @@ export const addToCart = async (req: Request, res: Response) => {
             // Add a new product to the cart
             cart.items.push({
                 product: product._id,
+                ...(selectedVariant ? { variantId: selectedVariant._id } : {}),
                 quantity,
             });
         }
@@ -193,6 +219,16 @@ export const updateCartItem = async (req: Request, res: Response) => {
             });
         }
 
+        const variantId = req.body.variantId ?? req.query.variantId;
+        if (
+            variantId !== undefined &&
+            (typeof variantId !== "string" || !mongoose.isValidObjectId(variantId))
+        ) {
+            return res.status(400).json({
+                message: "Invalid product variant ID",
+            });
+        }
+
         const [cart, product] = await Promise.all([
             CartModel.findOne({ user: userId }),
             ProductModel.findById(productId),
@@ -211,7 +247,11 @@ export const updateCartItem = async (req: Request, res: Response) => {
         }
 
         const item = cart.items.find(
-            (cartItem) => cartItem.product.toString() === productId
+            (cartItem) =>
+                cartItem.product.toString() === productId &&
+                (variantId
+                    ? cartItem.variantId?.toString() === variantId
+                    : !cartItem.variantId)
         );
 
         if (!item) {
@@ -220,10 +260,20 @@ export const updateCartItem = async (req: Request, res: Response) => {
             });
         }
 
-        const availableQuantity = product.variants.reduce(
-            (total, variant) => total + variant.quantity,
-            0,
-        );
+        const selectedVariant = variantId
+            ? product.variants.find((variant) => variant._id.toString() === variantId)
+            : undefined;
+        if (variantId && !selectedVariant) {
+            return res.status(404).json({
+                message: "Product variant not found",
+            });
+        }
+        const availableQuantity = selectedVariant
+            ? selectedVariant.quantity
+            : product.variants.reduce(
+                (total, variant) => total + variant.quantity,
+                0,
+            );
 
         if (quantity > availableQuantity) {
             return res.status(400).json({
@@ -273,24 +323,18 @@ export const removeFromCart = async (
             });
         }
 
+        const variantId = req.query.variantId;
+        if (
+            variantId !== undefined &&
+            (typeof variantId !== "string" || !mongoose.isValidObjectId(variantId))
+        ) {
+            return res.status(400).json({
+                message: "Invalid product variant ID",
+            });
+        }
+
         // Remove only from the authenticated user's cart
-        const cart = await CartModel.findOneAndUpdate(
-            { user: userId },
-            {
-                $pull: {
-                    items: {
-                        product: new mongoose.Types.ObjectId(productId),
-                    },
-                },
-            },
-            { new: true }
-        ).populate({
-            path: "items.product",
-            populate: {
-                path: "vendor",
-                select: "username email",
-            },
-        });
+        const cart = await CartModel.findOne({ user: userId });
 
         if (!cart) {
             return res.status(404).json({
@@ -298,12 +342,29 @@ export const removeFromCart = async (
             });
         }
 
-        // Invalidate Redis cache after successful removal
-            await invalidateCartCache(userId);
+        cart.set("items", cart.items.filter(
+            (item) =>
+                !(
+                    item.product.toString() === productId &&
+                    (variantId
+                        ? item.variantId?.toString() === variantId
+                        : !item.variantId)
+                )
+        ));
+        await cart.save();
+        await invalidateCartCache(userId);
+
+        const updatedCart = await CartModel.findById(cart._id).populate({
+            path: "items.product",
+            populate: {
+                path: "vendor",
+                select: "username email",
+            },
+        });
 
         return res.status(200).json({
             message: "Product removed from cart successfully",
-            cart,
+            cart: updatedCart,
         });
     } catch (error) {
         console.error("Remove from cart error:", error);

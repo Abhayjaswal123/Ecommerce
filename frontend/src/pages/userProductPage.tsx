@@ -5,12 +5,11 @@ import {
   ArrowRight,
   ChevronLeft,
   ChevronRight,
+  Eye,
   LoaderCircle,
   Package,
   Search,
   ShoppingCart,
-  Plus,
-  Minus,
 } from "lucide-react";
 
 import {
@@ -22,8 +21,7 @@ import {
 import {
   addCartItem,
   getCart,
-  removeCartItem,
-  updateCartItem,
+  type CartLine,
   type CartResponse,
 } from "@/api/cart";
 import {
@@ -37,11 +35,19 @@ import {
   type ProductCategory,
   type ProductFilters,
   type ProductListResponse,
+  type ProductVariant,
 } from "@/api/product";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -84,8 +90,7 @@ const productSections = {
 
 const PAGE_SIZE = 10;
 const SECTION_PREVIEW_SIZE = 4;
-type CartAction = "add" | "remove";
-
+type CartAction = "add";
 const currency = (amount: number) =>
   new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -108,7 +113,8 @@ const getCartQuantities = (response: CartResponse) => {
 
   for (const item of response.cart?.items ?? []) {
     if (item.product) {
-      quantities[item.product._id] = item.quantity;
+      quantities[item.product._id] =
+        (quantities[item.product._id] ?? 0) + item.quantity;
     }
   }
 
@@ -116,8 +122,14 @@ const getCartQuantities = (response: CartResponse) => {
 };
 
 const getCartQuantity = (response: CartResponse, productId: string) =>
-  response.cart?.items.find((item) => item.product?._id === productId)
-    ?.quantity ?? 0;
+  response.cart?.items.reduce(
+    (total, item) =>
+      item.product?._id === productId ? total + item.quantity : total,
+    0,
+  ) ?? 0;
+
+const getVariantKey = (variant: ProductVariant, index: number) =>
+  variant._id ?? `${variant.color}:${variant.size}:${index}`;
 
 export default function UserProducts() {
   const { section } = useParams<{ section?: string }>();
@@ -140,17 +152,18 @@ export default function UserProducts() {
     useState<"all" | "in-stock" | "out-of-stock">("all");
 
   const [cart, setCart] = useState<Record<string, number>>({});
+  const [cartItems, setCartItems] = useState<CartLine[]>([]);
   const [cartLoaded, setCartLoaded] = useState(false);
   const [updatingCart, setUpdatingCart] = useState<Record<string, CartAction>>({});
   const [pagination, setPagination] = useState({ key: "", page: 1 });
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedVariantId, setSelectedVariantId] = useState("");
 
-  const cartCount = Object.values(cart).reduce(
-    (total, quantity) => total + quantity,
-    0,
-  );
+  const cartCount = cartItems.reduce((total, item) => total + item.quantity, 0);
 
   const updateCartQuantity = (response: CartResponse, productId: string) => {
     const quantity = getCartQuantity(response, productId);
+    setCartItems(response.cart?.items ?? []);
     setCart((current) => {
       if (quantity === 0) {
         const next = { ...current };
@@ -250,7 +263,10 @@ export default function UserProducts() {
     const loadCart = async () => {
       try {
         const response = await getCart();
-        if (active) setCart(getCartQuantities(response.data));
+          if (active) {
+            setCart(getCartQuantities(response.data));
+            setCartItems(response.data.cart?.items ?? []);
+          }
       } catch (error) {
         if (active) setPageError(getErrorMessage(error));
       } finally {
@@ -265,11 +281,20 @@ export default function UserProducts() {
     };
   }, []);
 
-  const addToCart = async (product: Product) => {
+  const addToCart = async (product: Product, variant: ProductVariant) => {
+    const variantId = variant._id;
     if (
       !cartLoaded ||
       updatingCart[product._id] ||
-      getProductQuantity(product) <= (cart[product._id] ?? 0)
+      !variantId ||
+      variant.quantity <=
+        cartItems.reduce(
+          (total, item) =>
+            item.product?._id === product._id && item.variantId === variantId
+              ? total + item.quantity
+              : total,
+          0,
+        )
     ) {
       return;
     }
@@ -278,38 +303,15 @@ export default function UserProducts() {
     setPageError("");
 
     try {
-      const response = await addCartItem(product._id);
+      const response = await addCartItem(product._id, variantId);
       updateCartQuantity(response.data, product._id);
+      setSelectedProduct(null);
     } catch (error) {
       setPageError(getErrorMessage(error));
     } finally {
       setUpdatingCart((current) => {
         const next = { ...current };
         delete next[product._id];
-        return next;
-      });
-    }
-  };
-
-  const removeFromCart = async (productId: string) => {
-    if (!cartLoaded || updatingCart[productId]) return;
-
-    setUpdatingCart((current) => ({ ...current, [productId]: "remove" }));
-    setPageError("");
-
-    try {
-      const quantity = cart[productId] ?? 0;
-      const response =
-        quantity <= 1
-          ? await removeCartItem(productId)
-          : await updateCartItem(productId, quantity - 1);
-      updateCartQuantity(response.data, productId);
-    } catch (error) {
-      setPageError(getErrorMessage(error));
-    } finally {
-      setUpdatingCart((current) => {
-        const next = { ...current };
-        delete next[productId];
         return next;
       });
     }
@@ -354,17 +356,51 @@ export default function UserProducts() {
   };
 
   const getCartTotal = () =>
-    products.reduce(
-      (total, product) =>
-        total + getProductPrice(product) * (cart[product._id] ?? 0),
+    cartItems.reduce(
+      (total, item) => {
+        const product = item.product;
+        if (!product) return total;
+        const variant = product.variants.find(
+          (itemVariant) => itemVariant._id === item.variantId,
+        );
+        return total + (variant?.price ?? getProductPrice(product)) * item.quantity;
+      },
       0,
     );
+
+  const openProductOptions = (product: Product) => {
+    const variants = product.variants ?? [];
+    const initialIndex = Math.max(
+      0,
+      variants.findIndex((variant) => variant.quantity > 0),
+    );
+    setSelectedProduct(product);
+    setSelectedVariantId(
+      variants[initialIndex]
+        ? getVariantKey(variants[initialIndex], initialIndex)
+        : "",
+    );
+  };
+
+  const selectedVariants = selectedProduct?.variants ?? [];
+  const selectedVariantIndex = selectedVariants.findIndex(
+    (variant, index) => getVariantKey(variant, index) === selectedVariantId,
+  );
+  const selectedVariant =
+    selectedVariantIndex >= 0 ? selectedVariants[selectedVariantIndex] : null;
+  const selectedColor = selectedVariant?.color ?? "";
+  const availableColors = [...new Set(selectedVariants.map((variant) => variant.color))];
+  const colorVariants = selectedVariants
+    .map((variant, index) => ({ variant, index }))
+    .filter(({ variant }) => variant.color === selectedColor);
+  const availableSizes = [...new Set(colorVariants.map(({ variant }) => variant.size).filter(Boolean))];
 
   if (section && !activeSection) {
     return <Navigate to="/products" replace />;
   }
 
   return (
+    <>
     <div className="min-h-screen bg-[#171821] p-4 text-slate-100 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-[1500px] space-y-8">
 
@@ -418,10 +454,7 @@ export default function UserProducts() {
               products={paginatedProducts}
               loading={loading}
               cart={cart}
-              cartReady={cartLoaded}
-              updatingCart={updatingCart}
-              onAddToCart={addToCart}
-              onRemoveFromCart={removeFromCart}
+              onViewProduct={openProductOptions}
               likingProducts={likingProducts}
               onToggleLike={toggleLike}
             />
@@ -537,11 +570,8 @@ export default function UserProducts() {
             products={topProducts.slice(0, SECTION_PREVIEW_SIZE)}
             loading={loading}
             cart={cart}
-            cartReady={cartLoaded}
-            updatingCart={updatingCart}
             viewAllHref="/products/top"
-            onAddToCart={addToCart}
-            onRemoveFromCart={removeFromCart}
+            onViewProduct={openProductOptions}
             likingProducts={likingProducts}
             onToggleLike={toggleLike}
           />
@@ -552,11 +582,8 @@ export default function UserProducts() {
             products={likedProducts.slice(0, SECTION_PREVIEW_SIZE)}
             loading={loading}
             cart={cart}
-            cartReady={cartLoaded}
-            updatingCart={updatingCart}
             viewAllHref="/products/liked"
-            onAddToCart={addToCart}
-            onRemoveFromCart={removeFromCart}
+            onViewProduct={openProductOptions}
             likingProducts={likingProducts}
             onToggleLike={toggleLike}
           />
@@ -567,11 +594,8 @@ export default function UserProducts() {
             products={products.slice(0, SECTION_PREVIEW_SIZE)}
             loading={loading}
             cart={cart}
-            cartReady={cartLoaded}
-            updatingCart={updatingCart}
             viewAllHref="/products/all"
-            onAddToCart={addToCart}
-            onRemoveFromCart={removeFromCart}
+            onViewProduct={openProductOptions}
             likingProducts={likingProducts}
             onToggleLike={toggleLike}
           />
@@ -580,6 +604,173 @@ export default function UserProducts() {
         )}
       </div>
     </div>
+    <Dialog
+      open={selectedProduct !== null}
+      onOpenChange={(open) => {
+        if (!open) setSelectedProduct(null);
+      }}
+    >
+      <DialogContent className="max-h-[90vh] overflow-y-auto border-white/10 bg-[#20212b] text-white sm:max-w-2xl">
+        {selectedProduct && (
+          <>
+            <DialogHeader>
+              <DialogTitle className="pr-8 text-xl">
+                {selectedProduct.name}
+              </DialogTitle>
+              <DialogDescription className="text-slate-400">
+                Choose a color and size to see its price and availability.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="grid gap-6 pt-3 sm:grid-cols-2">
+              <div className="flex aspect-square items-center justify-center overflow-hidden rounded-xl bg-[#30313d]">
+                {selectedVariant?.img ? (
+                  <img
+                    src={selectedVariant.img}
+                    alt={`${selectedProduct.name}${selectedVariant.color ? ` in ${selectedVariant.color}` : ""}`}
+                    className="size-full object-cover"
+                  />
+                ) : (
+                  <Package className="size-14 text-slate-500" />
+                )}
+              </div>
+
+              <div className="space-y-5">
+                <p className="text-sm leading-6 text-slate-300">
+                  {selectedProduct.description || "No description available."}
+                </p>
+
+                {availableColors.length > 0 && (
+                  <fieldset>
+                    <legend className="mb-2 text-sm font-semibold">
+                      Color: <span className="font-normal text-slate-300">{selectedColor}</span>
+                    </legend>
+                    <div className="flex flex-wrap gap-2">
+                      {availableColors.map((color) => (
+                        <Button
+                          key={color}
+                          type="button"
+                          variant="outline"
+                          aria-pressed={selectedColor === color}
+                          onClick={() => {
+                            const matchingVariants = selectedVariants
+                              .map((variant, index) => ({ variant, index }))
+                              .filter(({ variant }) => variant.color === color);
+                            const matchingSize = matchingVariants.find(
+                              ({ variant }) => variant.size === selectedVariant?.size,
+                            );
+                            const next = matchingSize ?? matchingVariants[0];
+                            if (next) {
+                              setSelectedVariantId(
+                                getVariantKey(next.variant, next.index),
+                              );
+                            }
+                          }}
+                          className={
+                            selectedColor === color
+                              ? "border-[#a5e0d9] bg-[#a5e0d9]/15 text-[#a5e0d9]"
+                              : "border-white/10 bg-transparent text-slate-200 hover:bg-white/10"
+                          }
+                        >
+                          {color}
+                        </Button>
+                      ))}
+                    </div>
+                  </fieldset>
+                )}
+
+                {availableSizes.length > 0 && (
+                  <fieldset>
+                    <legend className="mb-2 text-sm font-semibold">
+                      Size: <span className="font-normal text-slate-300">{selectedVariant?.size}</span>
+                    </legend>
+                    <div className="flex flex-wrap gap-2">
+                      {colorVariants.map(({ variant, index }) => (
+                        <Button
+                          key={getVariantKey(variant, index)}
+                          type="button"
+                          variant="outline"
+                          aria-pressed={selectedVariantId === getVariantKey(variant, index)}
+                          onClick={() =>
+                            setSelectedVariantId(getVariantKey(variant, index))
+                          }
+                          className={
+                            selectedVariantId === getVariantKey(variant, index)
+                              ? "border-[#a5e0d9] bg-[#a5e0d9]/15 text-[#a5e0d9]"
+                              : "border-white/10 bg-transparent text-slate-200 hover:bg-white/10"
+                          }
+                        >
+                          {variant.size || "Standard"}
+                        </Button>
+                      ))}
+                    </div>
+                  </fieldset>
+                )}
+
+                {selectedVariant && (
+                  <div className="rounded-xl border border-white/10 bg-[#171821] p-4">
+                    <p className="text-2xl font-bold text-[#a5e0d9]">
+                      {currency(selectedVariant.price)}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-400">
+                      {selectedVariant.quantity > 0
+                        ? `${selectedVariant.quantity} available`
+                        : "This variant is out of stock"}
+                    </p>
+                  </div>
+                )}
+
+                <Button
+                  type="button"
+                  disabled={
+                    !cartLoaded ||
+                    !selectedVariant ||
+                    !selectedVariant._id ||
+                    selectedVariant.quantity <=
+                      cartItems.reduce(
+                        (total, item) =>
+                          item.product?._id === selectedProduct._id &&
+                          item.variantId === selectedVariant._id
+                            ? total + item.quantity
+                            : total,
+                        0,
+                      ) ||
+                    Boolean(updatingCart[selectedProduct._id])
+                  }
+                  onClick={() => {
+                    if (selectedVariant) {
+                      void addToCart(selectedProduct, selectedVariant);
+                    }
+                  }}
+                  className="h-11 w-full gap-2 bg-[#a5e0d9] font-semibold text-[#171821] hover:bg-[#8bd5cc]"
+                >
+                  {updatingCart[selectedProduct._id] ? (
+                    <LoaderCircle className="size-4 animate-spin" />
+                  ) : (
+                    <ShoppingCart className="size-4" />
+                  )}
+                  {updatingCart[selectedProduct._id]
+                    ? "Adding..."
+                    : selectedVariant &&
+                        selectedVariant.quantity <=
+                          cartItems.reduce(
+                            (total, item) =>
+                              item.product?._id === selectedProduct._id &&
+                              item.variantId === selectedVariant._id
+                                ? total + item.quantity
+                                : total,
+                            0,
+                          )
+                      ? "No more stock available"
+                      : "Add selected variant to cart"}
+                </Button>
+              </div>
+            </div>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
 
@@ -589,11 +780,8 @@ function ProductSection({
   products,
   loading,
   cart,
-  cartReady,
-  updatingCart,
   viewAllHref,
-  onAddToCart,
-  onRemoveFromCart,
+  onViewProduct,
   likingProducts,
   onToggleLike,
 }: {
@@ -602,11 +790,8 @@ function ProductSection({
   products: Product[];
   loading: boolean;
   cart: Record<string, number>;
-  cartReady: boolean;
-  updatingCart: Record<string, CartAction>;
   viewAllHref?: string;
-  onAddToCart: (product: Product) => void;
-  onRemoveFromCart: (productId: string) => void;
+  onViewProduct: (product: Product) => void;
   likingProducts: Record<string, boolean>;
   onToggleLike: (product: Product) => void;
 }) {
@@ -647,10 +832,6 @@ function ProductSection({
             const productPrice = getProductPrice(product);
             const productImage = getProductImage(product);
             const outOfStock = productQuantity <= 0;
-            const cartLimitReached = inCart >= productQuantity;
-            const cartAction = updatingCart[product._id];
-            const isAdding = cartAction === "add";
-            const isRemoving = cartAction === "remove";
 
             return (
               <Card
@@ -728,64 +909,20 @@ function ProductSection({
                     </span>
                   </div>
 
-                  {/* Cart controls instead of Edit/Delete */}
-                  {inCart > 0 ? (
-                    <div className="flex items-center gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        aria-label={`Remove one ${product.name} from cart`}
-                        disabled={!cartReady || Boolean(cartAction)}
-                        onClick={() => void onRemoveFromCart(product._id)}
-                        className="border-white/10 bg-transparent text-white hover:bg-white/10"
-                      >
-                        {isRemoving ? (
-                          <LoaderCircle className="size-4 animate-spin" />
-                        ) : (
-                          <Minus className="size-4" />
-                        )}
-                      </Button>
-
-                      <span className="flex-1 text-center text-sm font-semibold">
-                        {outOfStock
-                          ? `Out of Stock · ${inCart} in cart`
-                          : `${inCart} in cart`}
-                      </span>
-
-                      <Button
-                        type="button"
-                        variant="outline"
-                        aria-label={`Add one ${product.name} to cart`}
-                        disabled={!cartReady || Boolean(cartAction) || cartLimitReached}
-                        onClick={() => void onAddToCart(product)}
-                        className="border-white/10 bg-transparent text-white hover:bg-white/10"
-                      >
-                        {isAdding ? (
-                          <LoaderCircle className="size-4 animate-spin" />
-                        ) : (
-                          <Plus className="size-4" />
-                        )}
-                      </Button>
-                    </div>
-                  ) : (
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs text-slate-400">
+                      {inCart > 0 ? `${inCart} in cart` : "Choose size and color"}
+                    </span>
                     <Button
                       type="button"
-                      disabled={!cartReady || Boolean(cartAction) || outOfStock}
-                      onClick={() => void onAddToCart(product)}
-                      className="h-11 w-full gap-2 bg-[#a5e0d9] font-semibold text-[#171821] hover:bg-[#8bd5cc] disabled:cursor-not-allowed disabled:opacity-50"
+                      onClick={() => onViewProduct(product)}
+                      aria-label={`View ${product.name} variants`}
+                      className="h-10 gap-2 bg-[#a5e0d9] font-semibold text-[#171821] hover:bg-[#8bd5cc] disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {isAdding ? (
-                        <LoaderCircle className="size-4 animate-spin" />
-                      ) : (
-                        <ShoppingCart className="size-4" />
-                      )}
-                      {isAdding
-                        ? "Adding..."
-                        : outOfStock
-                        ? "Out of Stock"
-                        : "Add to Cart"}
+                      <Eye className="size-4" />
+                      View options
                     </Button>
-                  )}
+                  </div>
                 </CardContent>
               </Card>
             );

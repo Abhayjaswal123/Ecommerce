@@ -28,6 +28,7 @@ import {
   getProductImage,
   getProductPrice,
   getProductQuantity,
+  type ProductVariant,
   type Product,
 } from "@/api/product";
 import { createOrder } from "@/api/orders";
@@ -42,6 +43,11 @@ const getErrorMessage = (error: unknown) => {
 
   return error instanceof Error ? error.message : "Something went wrong.";
 };
+
+const getCartLinePrice = (item: CartLine & { product: Product }) =>
+  item.product.variants.find(
+    (variant) => variant._id === item.variantId,
+  )?.price ?? getProductPrice(item.product);
 
 export default function Cart() {
   const navigate = useNavigate();
@@ -94,21 +100,25 @@ export default function Cart() {
     };
   }, [applyCartResponse]);
 
-  const updateItem = async (productId: string, quantity: number) => {
-    if (updatingItems[productId]) return;
+  const updateItem = async (
+    item: CartLine,
+    quantity: number,
+  ) => {
+    const productId = item.product?._id;
+    if (!productId || updatingItems[item._id]) return;
 
-    setUpdatingItems((previous) => ({ ...previous, [productId]: true }));
+    setUpdatingItems((previous) => ({ ...previous, [item._id]: true }));
     setPageError("");
 
     try {
       const response = quantity === 0
-        ? await removeCartItem(productId)
-        : await updateCartItem(productId, quantity);
+        ? await removeCartItem(productId, item.variantId)
+        : await updateCartItem(productId, quantity, item.variantId);
       applyCartResponse(response.data);
     } catch (error) {
       setPageError(getErrorMessage(error));
     } finally {
-      setUpdatingItems((previous) => ({ ...previous, [productId]: false }));
+      setUpdatingItems((previous) => ({ ...previous, [item._id]: false }));
     }
   };
 
@@ -121,7 +131,7 @@ export default function Cart() {
   );
   const subtotal = availableItems.reduce(
     (total, item) =>
-      total + getProductPrice(item.product) * item.quantity,
+      total + getCartLinePrice(item) * item.quantity,
     0,
   );
   const itemCount = availableItems.reduce(
@@ -136,7 +146,7 @@ export default function Cart() {
     vendorSubtotals.set(
       vendorId,
       (vendorSubtotals.get(vendorId) ?? 0) +
-        getProductPrice(item.product) * item.quantity,
+        getCartLinePrice(item) * item.quantity,
     );
   }
   const shipping = [...vendorSubtotals.values()].reduce(
@@ -236,10 +246,17 @@ export default function Cart() {
             >
               {availableItems.map((item) => {
                 const product = item.product;
-                const isUpdating = updatingItems[product._id] ?? false;
-                const productPrice = getProductPrice(product);
-                const productQuantity = getProductQuantity(product);
-                const productImage = getProductImage(product);
+                const isUpdating = updatingItems[item._id] ?? false;
+                const selectedVariant: ProductVariant | undefined =
+                  product.variants.find(
+                    (variant) => variant._id === item.variantId,
+                  );
+                const productPrice =
+                  selectedVariant?.price ?? getProductPrice(product);
+                const productQuantity =
+                  selectedVariant?.quantity ?? getProductQuantity(product);
+                const productImage =
+                  selectedVariant?.img ?? getProductImage(product);
 
                 return (
                   <article
@@ -259,6 +276,13 @@ export default function Cart() {
                       <p className="mt-1 text-sm text-[#91B5D9]">
                         {formatPrice(productPrice)} per item
                       </p>
+                      {(selectedVariant?.color || selectedVariant?.size) && (
+                        <p className="mt-1 text-xs text-[#91B5D9]">
+                          {[selectedVariant.color, selectedVariant.size]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                      )}
                       <p className="mt-2 font-bold text-[#A5E2DB]">
                         {formatPrice(productPrice * item.quantity)}
                       </p>
@@ -269,9 +293,7 @@ export default function Cart() {
                         <button
                           type="button"
                           disabled={isUpdating}
-                          onClick={() =>
-                            void updateItem(product._id, item.quantity - 1)
-                          }
+                          onClick={() => void updateItem(item, item.quantity - 1)}
                           aria-label={`Decrease ${product.name} quantity`}
                           className="rounded-l-lg p-2 text-[#91B5D9] transition hover:bg-[#30313D] hover:text-[#A5E2DB] disabled:opacity-50"
                         >
@@ -286,9 +308,7 @@ export default function Cart() {
                         <button
                           type="button"
                           disabled={isUpdating || item.quantity >= productQuantity}
-                          onClick={() =>
-                            void updateItem(product._id, item.quantity + 1)
-                          }
+                          onClick={() => void updateItem(item, item.quantity + 1)}
                           aria-label={`Increase ${product.name} quantity`}
                           className="rounded-r-lg p-2 text-[#91B5D9] transition hover:bg-[#30313D] hover:text-[#A5E2DB] disabled:opacity-50"
                         >
@@ -299,7 +319,7 @@ export default function Cart() {
                       <button
                         type="button"
                         disabled={isUpdating}
-                        onClick={() => void updateItem(product._id, 0)}
+                        onClick={() => void updateItem(item, 0)}
                         className="inline-flex items-center gap-1 text-sm text-red-400 transition hover:text-red-300 disabled:opacity-50"
                       >
                         <Trash2 size={16} />
